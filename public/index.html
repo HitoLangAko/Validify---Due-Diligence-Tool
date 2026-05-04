@@ -1,11 +1,142 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Title</title>
+  <meta charset="UTF-8">
+  <title>Vendor Due Diligence System</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    
+
+  <main class="container">
+
+    <div class="user-bar">
+      <div>
+        Logged in as: <strong id="loggedUserName">Loading...</strong>
+        | Role: <strong id="loggedUserRole">Loading...</strong>
+      </div>
+
+      <button id="logoutBtn">Logout</button>
+    </div>
+
+    <header class="page-header">
+      <h1>Vendor Due Diligence System</h1>
+      <p id="roleHelper">Loading role-based page...</p>
+    </header>
+
+    <section class="card vendor-only">
+      <h2>1. Vendor Information</h2>
+
+      <form id="vendorForm">
+        <div class="grid">
+          <div>
+            <label>Company Name</label>
+            <input type="text" id="company_name" required>
+          </div>
+
+          <div>
+            <label>Company Website</label>
+            <input type="text" id="company_website">
+          </div>
+        </div>
+
+        <label>Product / Services Offered</label>
+        <textarea id="product_services_offered"></textarea>
+
+        <div class="grid">
+          <div>
+            <label>Contact Person Name</label>
+            <input type="text" id="contact_person_name">
+          </div>
+
+          <div>
+            <label>Contact Email</label>
+            <input type="email" id="contact_email">
+          </div>
+        </div>
+
+        <label>Contact Phone</label>
+        <input type="text" id="contact_phone">
+
+        <button type="submit">Save Vendor</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>2. Assessment</h2>
+
+      <form id="assessmentForm" class="vendor-only">
+        <label>Select Vendor</label>
+        <select id="vendorSelect" required>
+          <option value="">Select a vendor</option>
+        </select>
+
+        <div class="grid">
+          <div>
+            <label>Assessment Date</label>
+            <input type="date" id="assessment_date" required>
+          </div>
+
+          <div>
+            <label>Purpose</label>
+            <select id="purpose" required>
+              <option value="">Select purpose</option>
+              <option value="Accreditation">Accreditation</option>
+              <option value="Re-accreditation">Re-accreditation</option>
+              <option value="New Contract">New Contract</option>
+              <option value="Renewal">Renewal</option>
+            </select>
+          </div>
+        </div>
+
+        <button type="submit">Create Assessment</button>
+      </form>
+
+      <label>Select Existing Assessment</label>
+      <select id="assessmentSelect">
+        <option value="">Select assessment</option>
+      </select>
+
+      <p id="currentAssessment" class="notice">No active assessment selected.</p>
+    </section>
+
+    <section class="card">
+      <h2>3. Questionnaire</h2>
+      <p class="helper" id="questionnaireHelper">
+        Select or create an assessment first.
+      </p>
+
+      <form id="questionnaireForm">
+        <div id="questionsContainer"></div>
+
+        <div class="vendor-actions">
+          <button type="button" id="saveVendorAnswersBtn" class="save-all-btn">
+            Save Vendor Draft Answers
+          </button>
+
+          <button type="button" id="submitVendorAnswersBtn">
+            Submit Vendor Answers
+          </button>
+        </div>
+
+        <div class="company-actions">
+          <button type="button" id="saveCompanyReviewBtn" class="company-btn">
+            Save Company Review
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <section class="card vendor-only">
+      <h2>4. Saved Vendors</h2>
+      <div id="vendorList"></div>
+    </section>
+
+    <section class="card">
+      <h2>5. Assessments</h2>
+      <div id="assessmentList"></div>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
 </body>
 </html>

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login | Vendor Due Diligence System</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <main class="auth-container">
+    <section class="auth-card">
+      <h1>Vendor Due Diligence System</h1>
+      <p>Login or register as a Vendor or Company Employee.</p>
+
+      <div class="auth-tabs">
+        <button type="button" id="showLoginBtn" class="tab-btn active">Login</button>
+        <button type="button" id="showRegisterBtn" class="tab-btn">Register</button>
+      </div>
+
+      <!-- LOGIN FORM -->
+      <form id="loginForm" class="auth-form">
+        <h2>Login</h2>
+
+        <label>Email</label>
+        <input type="email" id="login_email" placeholder="Enter your email" required>
+
+        <label>Password</label>
+        <input type="password" id="login_password" placeholder="Enter your password" required>
+
+        <button type="submit">Login</button>
+      </form>
+
+      <!-- REGISTER FORM -->
+      <form id="registerForm" class="auth-form hidden">
+        <h2>Register</h2>
+
+        <label>Full Name</label>
+        <input type="text" id="register_full_name" placeholder="Enter your full name" required>
+
+        <label>Email</label>
+        <input type="email" id="register_email" placeholder="Enter your email" required>
+
+        <label>Password</label>
+        <input type="password" id="register_password" placeholder="Create a password" required>
+
+        <label>Account Type</label>
+        <select id="register_role" required>
+          <option value="">Select account type</option>
+          <option value="vendor">Vendor</option>
+          <option value="company_employee">Company Employee</option>
+        </select>
+
+        <button type="submit">Create Account</button>
+      </form>
+
+      <p id="authMessage" class="notice hidden"></p>
+    </section>
+  </main>
+
+  <script src="login.js"></script>
+</body>
+</html>
