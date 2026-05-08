@@ -223,10 +223,6 @@ button:hover {
   gap: 10px;
 }
 
-.hidden {
-  display: none;
-}
-
 .user-bar {
   background: #1f7a4d;
   color: white;
@@ -288,10 +284,6 @@ button:hover {
   gap: 10px;
 }
 
-.hidden {
-  display: none;
-}
-
 .user-bar {
   background: #1f7a4d;
   color: white;
@@ -335,10 +327,6 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 10px;
-}
-
-.hidden {
-  display: none !important;
 }
 
 .form-tabs {

@@ -81,6 +81,7 @@ function applyRoleView() {
   const vendorOnlyElements = document.querySelectorAll(".vendor-only");
   const vendorActions = document.querySelector(".vendor-actions");
   const companyActions = document.querySelector(".company-actions");
+  const signoffTab = document.querySelector('[data-tab="Sign-off Sheet"]');
 
   if (currentUser.role === "vendor") {
     roleHelper.textContent =
@@ -93,8 +94,15 @@ function applyRoleView() {
     vendorActions.classList.remove("hidden");
     companyActions.classList.add("hidden");
 
-    // Vendor should not see export button
-    exportExcelBtn.classList.add("hidden");
+    // Hide Sign-off Sheet from vendor view
+    if (signoffTab) {
+      signoffTab.classList.add("hidden");
+    }
+
+    // Hide export button from vendor
+    if (exportExcelBtn) {
+      exportExcelBtn.classList.add("hidden");
+    }
   } else {
     roleHelper.textContent =
       "Company employee page: review submitted vendor assessments.";
@@ -106,8 +114,15 @@ function applyRoleView() {
     vendorActions.classList.add("hidden");
     companyActions.classList.remove("hidden");
 
-    // Company employee can see export button
-    exportExcelBtn.classList.remove("hidden");
+    // Show Sign-off Sheet for company employee
+    if (signoffTab) {
+      signoffTab.classList.remove("hidden");
+    }
+
+    // Show export button for company employee
+    if (exportExcelBtn) {
+      exportExcelBtn.classList.remove("hidden");
+    }
   }
 }
 
