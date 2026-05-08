@@ -4,6 +4,8 @@ const cors = require("cors");
 const bcrypt = require("bcryptjs");
 const session = require("express-session");
 const ExcelJS = require("exceljs");
+const path = require("path");
+const fs = require("fs");
 
 const app = express();
 
@@ -646,7 +648,7 @@ app.post("/signoffs", requireRole("company_employee"), (req, res) => {
    EXPORT ROUTE
 ========================= */
 
-app.get("/export/:assessment_id", requireLogin, async (req, res) => {
+app.get("/export/:assessment_id", requireRole("company_employee"), async (req, res) => {
   const { assessment_id } = req.params;
 
   const assessmentSql = `
@@ -743,7 +745,7 @@ app.get("/export/:assessment_id", requireLogin, async (req, res) => {
         workbook.creator = "Vendor Due Diligence System";
 
         createAnswerSheet(workbook, "Due Diligence Form", assessment, answerRows);
-        createAnswerSheet(workbook, "Information Security", assessment, answerRows);
+        createInformationSecuritySheet(workbook, assessment, answerRows);
         createSignoffSheet(workbook, assessment, signoffRows);
 
         res.setHeader(
@@ -766,108 +768,692 @@ app.get("/export/:assessment_id", requireLogin, async (req, res) => {
 function createAnswerSheet(workbook, tabName, assessment, rows) {
   const sheet = workbook.addWorksheet(tabName);
 
+  sheet.pageSetup = {
+    paperSize: 9,
+    orientation: "portrait",
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0
+  };
+
+  sheet.properties.defaultRowHeight = 22;
+
   sheet.columns = [
-    { header: "Section", key: "section_name", width: 35 },
-    { header: "Question", key: "question_text", width: 70 },
-    { header: "Response Type", key: "response_type", width: 18 },
-    { header: "Required", key: "is_required", width: 12 },
-    { header: "Vendor Response", key: "vendor_response", width: 35 },
-    { header: "Company Comment", key: "company_comment", width: 45 }
+    { key: "question_text", width: 85 },
+    { key: "vendor_response", width: 38 },
+    { key: "company_comment", width: 38 }
   ];
 
-  sheet.insertRow(1, [`${tabName}`]);
-  sheet.insertRow(2, [`Company Name: ${assessment.company_name}`]);
-  sheet.insertRow(3, [`Website: ${assessment.company_website || "N/A"}`]);
-  sheet.insertRow(4, [`Product/Services: ${assessment.product_services_offered || "N/A"}`]);
-  sheet.insertRow(5, [`Assessment ID: ${assessment.assessment_id}`]);
-  sheet.insertRow(6, [`Assessment Date: ${assessment.assessment_date || "N/A"}`]);
-  sheet.insertRow(7, [`Purpose: ${assessment.purpose || "N/A"}`]);
-  sheet.insertRow(8, [`Status: ${assessment.status}`]);
-  sheet.insertRow(9, []);
+  // Main title
+  sheet.mergeCells("A1:C1");
+  sheet.getCell("A1").value = tabName.toUpperCase();
+  sheet.getCell("A1").font = {
+    bold: true,
+    size: 16,
+    color: { argb: "FFFFFFFF" }
+  };
+  sheet.getCell("A1").fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FF1F7A4D" }
+  };
+  sheet.getCell("A1").alignment = {
+    horizontal: "center",
+    vertical: "middle"
+  };
+  sheet.getCell("A1").border = blackBorder();
+
+  // Assessment details block
+  const details = [
+    ["Company Name", assessment.company_name || "N/A"],
+    ["Company Website", assessment.company_website || "N/A"],
+    ["Product / Services", assessment.product_services_offered || "N/A"],
+    ["Contact Person", assessment.contact_person_name || "N/A"],
+    ["Contact Email", assessment.contact_email || "N/A"],
+    ["Contact Phone", assessment.contact_phone || "N/A"],
+    ["Assessment ID", assessment.assessment_id],
+    ["Assessment Date", formatExcelDate(assessment.assessment_date)],
+    ["Purpose", assessment.purpose || "N/A"],
+    ["Status", assessment.status || "N/A"]
+  ];
+
+  let detailStartRow = 3;
+
+  details.forEach((item, index) => {
+    const rowNumber = detailStartRow + index;
+
+    sheet.getCell(`A${rowNumber}`).value = item[0];
+    sheet.getCell(`B${rowNumber}`).value = item[1] !== null && item[1] !== undefined
+    ? String(item[1])
+    : "N/A";
+
+    sheet.getCell(`A${rowNumber}`).font = { bold: true };
+    sheet.getCell(`A${rowNumber}`).fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFEAF4EE" }
+    };
+
+    sheet.getCell(`A${rowNumber}`).border = thinBorder();
+    sheet.getCell(`B${rowNumber}`).border = thinBorder();
+
+    sheet.getCell(`A${rowNumber}`).alignment = {
+      horizontal: "left",
+      vertical: "top",
+      wrapText: true
+    };
+
+    sheet.getCell(`B${rowNumber}`).alignment = {
+      horizontal: "left",
+      vertical: "top",
+      wrapText: true
+    };
+  });
+
+  // Table header starts after details block
+  const tableHeaderRow = detailStartRow + details.length + 2;
+
+  sheet.getCell(`A${tableHeaderRow}`).value = "";
+  sheet.getCell(`B${tableHeaderRow}`).value = "VENDOR RESPONSE";
+  sheet.getCell(`C${tableHeaderRow}`).value = "<Company> COMMENT/S";
+
+  sheet.getCell(`B${tableHeaderRow}`).fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FFC65911" }
+  };
+
+  sheet.getCell(`C${tableHeaderRow}`).fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FF2E75B6" }
+  };
+
+  [`A${tableHeaderRow}`, `B${tableHeaderRow}`, `C${tableHeaderRow}`].forEach((cellRef) => {
+    const cell = sheet.getCell(cellRef);
+
+    cell.font = {
+      bold: true,
+      color: { argb: cellRef === `A${tableHeaderRow}` ? "FF000000" : "FFFFFFFF" }
+    };
+
+    cell.alignment = {
+      horizontal: "center",
+      vertical: "middle",
+      wrapText: true
+    };
+
+    cell.border = blackBorder();
+  });
 
   const filteredRows = rows.filter((row) => row.tab_name === tabName);
 
+  let currentRow = tableHeaderRow + 1;
+  let lastSection = "";
+
   filteredRows.forEach((row) => {
-    sheet.addRow({
-      section_name: row.section_name,
-      question_text: row.question_text,
-      response_type: row.response_type,
-      is_required: row.is_required ? "Yes" : "No",
-      vendor_response: row.vendor_response || "",
-      company_comment: row.company_comment || ""
+    if (row.section_name !== lastSection) {
+      const sectionRow = sheet.getRow(currentRow);
+
+      sectionRow.getCell(1).value = row.section_name.toUpperCase();
+      sectionRow.getCell(2).value = "";
+      sectionRow.getCell(3).value = "";
+
+      sectionRow.eachCell({ includeEmpty: true }, (cell) => {
+        cell.font = {
+          bold: true,
+          color: { argb: "FF000000" }
+        };
+
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFFFFFFF" }
+        };
+
+        cell.alignment = {
+          vertical: "middle",
+          wrapText: true
+        };
+
+        cell.border = blackBorder();
+      });
+
+      currentRow++;
+      lastSection = row.section_name;
+    }
+
+    const answerRow = sheet.getRow(currentRow);
+
+    answerRow.getCell(1).value = row.question_text || "";
+    answerRow.getCell(2).value = row.vendor_response || "";
+    answerRow.getCell(3).value = row.company_comment || "";
+
+    answerRow.height = 40;
+
+    answerRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+      cell.border = blackBorder();
+
+      cell.alignment = {
+        vertical: "top",
+        wrapText: true
+      };
+
+      if (colNumber === 1) {
+        cell.font = {
+          italic: true,
+          color: { argb: "FF000000" }
+        };
+      }
     });
+
+    currentRow++;
   });
 
-  sheet.getRow(10).font = { bold: true };
+  sheet.views = [];
+}
 
-  sheet.eachRow((row) => {
-    row.eachCell((cell) => {
+function thinBorder() {
+  return {
+    top: { style: "thin", color: { argb: "FFB7B7B7" } },
+    left: { style: "thin", color: { argb: "FFB7B7B7" } },
+    bottom: { style: "thin", color: { argb: "FFB7B7B7" } },
+    right: { style: "thin", color: { argb: "FFB7B7B7" } }
+  };
+}
+
+function blackBorder() {
+  return {
+    top: { style: "medium", color: { argb: "FF000000" } },
+    left: { style: "medium", color: { argb: "FF000000" } },
+    bottom: { style: "medium", color: { argb: "FF000000" } },
+    right: { style: "medium", color: { argb: "FF000000" } }
+  };
+}
+
+function createInformationSecuritySheet(workbook, assessment, rows) {
+  const sheet = workbook.addWorksheet("Information Security");
+
+  sheet.pageSetup = {
+    paperSize: 9,
+    orientation: "portrait",
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0
+  };
+
+  sheet.properties.defaultRowHeight = 22;
+
+  // Column widths based on your sample
+  sheet.columns = [
+    { key: "question_text", width: 75 },
+    { key: "vendor_response", width: 35 },
+    { key: "company_comment", width: 30 },
+    { key: "artifacts", width: 22 }
+  ];
+
+  // Top product/service row
+  sheet.mergeCells("A1:D1");
+  sheet.getCell("A1").value = `Product/ Services Offered to <Company>: ${assessment.product_services_offered || ""}`;
+  sheet.getCell("A1").font = {
+    bold: true,
+    size: 11,
+    color: { argb: "FF000000" }
+  };
+  sheet.getCell("A1").alignment = {
+    vertical: "middle",
+    wrapText: true
+  };
+  sheet.getCell("A1").border = blackBorder();
+
+  // Main header row
+  const headerRow = 2;
+
+  sheet.getCell(`A${headerRow}`).value = "IT SUPPLIER DUE DILIGENCE QUESTIONNAIRES";
+  sheet.getCell(`B${headerRow}`).value = "RESPONSE/CURRENTLY\nAVAILABLE IN YOUR COMPANY?\n(YES | NO | N/A)";
+  sheet.getCell(`C${headerRow}`).value = "VENDOR/SUPPLIER\nCOMMENTS";
+  sheet.getCell(`D${headerRow}`).value = "ARTIFACTS";
+
+  [`A${headerRow}`, `B${headerRow}`, `C${headerRow}`, `D${headerRow}`].forEach((cellRef) => {
+    const cell = sheet.getCell(cellRef);
+
+    cell.font = {
+      bold: true,
+      color: { argb: "FFFFFFFF" },
+      size: 11
+    };
+
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FF1F4E79" }
+    };
+
+    cell.alignment = {
+      horizontal: "center",
+      vertical: "middle",
+      wrapText: true
+    };
+
+    cell.border = blackBorder();
+  });
+
+  sheet.getRow(headerRow).height = 45;
+
+  const filteredRows = rows.filter((row) => row.tab_name === "Information Security");
+
+  let currentRow = 3;
+  let lastSection = "";
+  let sectionQuestionNumber = 1;
+
+  filteredRows.forEach((row) => {
+    if (row.section_name !== lastSection) {
+      sheet.mergeCells(`A${currentRow}:D${currentRow}`);
+
+      const sectionCell = sheet.getCell(`A${currentRow}`);
+      sectionCell.value = row.section_name;
+      sectionCell.font = {
+        bold: true,
+        color: { argb: "FFFFFFFF" },
+        size: 11
+      };
+
+      sectionCell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FF1F4E79" }
+      };
+
+      sectionCell.alignment = {
+        horizontal: "center",
+        vertical: "middle",
+        wrapText: true
+      };
+
+      sectionCell.border = blackBorder();
+
+      currentRow++;
+      lastSection = row.section_name;
+      sectionQuestionNumber = 1;
+    }
+
+    const excelRow = sheet.getRow(currentRow);
+
+    excelRow.getCell(1).value = `${sectionQuestionNumber}. ${row.question_text || ""}`;
+    excelRow.getCell(2).value = row.vendor_response || "";
+    excelRow.getCell(3).value = row.company_comment || "";
+    excelRow.getCell(4).value = "";
+
+    excelRow.height = 60;
+
+    excelRow.eachCell({ includeEmpty: true }, (cell) => {
+      cell.border = blackBorder();
       cell.alignment = {
         vertical: "top",
         wrapText: true
       };
     });
+
+    currentRow++;
+    sectionQuestionNumber++;
   });
+
+  // No frozen panes for smoother scrolling
+  sheet.views = [];
+}
+
+function blackBorder() {
+  return {
+    top: { style: "medium", color: { argb: "FF000000" } },
+    left: { style: "medium", color: { argb: "FF000000" } },
+    bottom: { style: "medium", color: { argb: "FF000000" } },
+    right: { style: "medium", color: { argb: "FF000000" } }
+  };
 }
 
 function createSignoffSheet(workbook, assessment, signoffs) {
   const sheet = workbook.addWorksheet("Sign-off Sheet");
 
+  sheet.pageSetup = {
+    paperSize: 9,
+    orientation: "portrait",
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 1
+  };
+
+  sheet.properties.defaultRowHeight = 20;
+
+  // Column widths
   sheet.columns = [
-    { header: "Role", key: "role_name", width: 35 },
-    { header: "Signer Name", key: "signer_name", width: 35 },
-    { header: "Status", key: "signoff_status", width: 18 },
-    { header: "Signed At", key: "signed_at", width: 25 }
+    { width: 4 },   // A
+    { width: 10 },  // B
+    { width: 10 },  // C
+    { width: 10 },  // D
+    { width: 10 },  // E
+    { width: 10 },  // F
+    { width: 10 },  // G
+    { width: 10 },  // H
+    { width: 10 },  // I
+    { width: 10 },  // J
+    { width: 10 },  // K
+    { width: 10 },  // L
+    { width: 10 },  // M
+    { width: 10 },  // N
+    { width: 4 }    // O
   ];
 
-  sheet.insertRow(1, ["VENDOR / IT SUPPLIER DUE DILIGENCE FORM"]);
-  sheet.insertRow(2, ["SIGN-OFF SHEET"]);
-  sheet.insertRow(3, [`Company Name: ${assessment.company_name}`]);
-  sheet.insertRow(4, [`Assessment ID: ${assessment.assessment_id}`]);
-  sheet.insertRow(5, [`Status: ${assessment.status}`]);
-  sheet.insertRow(6, []);
+// Outer border area only, no merge
+  applyOuterBorderToRange(sheet, "B1:N34", thickBorder());
 
-  const defaultRoles = [
-    "Business Unit Representative",
-    "Risk Management Officer",
-    "HR",
-    "IT Compliance",
-    "InfoSec",
-    "DPO"
-  ];
+  // Logo box
+  sheet.mergeCells("C2:E4");
+applyBorderToRange(sheet, "C2:E4", thinBlackBorder());
 
+const logoPath = path.join(__dirname, "public", "images", "company-logo.png");
+
+if (fs.existsSync(logoPath)) {
+  const logoImageId = workbook.addImage({
+    filename: logoPath,
+    extension: "png"
+  });
+
+  sheet.addImage(logoImageId, {
+    tl: { col: 2.15, row: 1.25 },
+    ext: { width: 185, height: 55 }
+  });
+} else {
+  sheet.getCell("C2").value = "Company Logo";
+  sheet.getCell("C2").fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FF5B9BD5" }
+  };
+  sheet.getCell("C2").font = {
+    bold: true,
+    color: { argb: "FFFFFFFF" }
+  };
+  sheet.getCell("C2").alignment = {
+    horizontal: "center",
+    vertical: "middle"
+  };
+}
+
+  // Title
+  sheet.mergeCells("F2:L3");
+  sheet.getCell("F2").value = "VENDOR/IT SUPPLIER DUE DILIGENCE FORM\nSIGN-OFF SHEET";
+  sheet.getCell("F2").font = {
+    bold: true,
+    size: 18,
+    color: { argb: "FF000000" }
+  };
+  sheet.getCell("F2").alignment = {
+    horizontal: "left",
+    vertical: "middle",
+    wrapText: true
+  };
+
+  // Signoff map
   const signoffMap = {};
-
   signoffs.forEach((item) => {
     signoffMap[item.role_name] = item;
   });
 
-  defaultRoles.forEach((role) => {
-    const item = signoffMap[role] || {};
-
-    sheet.addRow({
-      role_name: role,
-      signer_name: item.signer_name || "",
-      signoff_status: item.signoff_status || "Pending",
-      signed_at: item.signed_at || ""
-    });
+  // Left boxes
+  createSignatureBox(sheet, {
+    labelRange: "C6:C10",
+    boxRange: "D6:F10",
+    label: "IT",
+    signer: getSigner(signoffMap, "IT Compliance")
   });
 
-  sheet.addRow([]);
-  sheet.addRow([
-    "Disclaimer: All identified risks, findings, and recommended controls are based on the disclosure of the Vendor/IT supplier with the supervision of the requesting unit based on the initial questionnaire submitted."
-  ]);
+  createSignatureBox(sheet, {
+    labelRange: "C12:C16",
+    boxRange: "D12:F16",
+    label: "INFOSEC",
+    signer: getSigner(signoffMap, "InfoSec")
+  });
 
-  sheet.getRow(7).font = { bold: true };
+  createSignatureBox(sheet, {
+    labelRange: "C19:C23",
+    boxRange: "D19:F23",
+    label: "RISK\nMANAGEMENT\nOFFICER",
+    signer: getSigner(signoffMap, "Risk Management Officer")
+  });
 
-  sheet.eachRow((row) => {
-    row.eachCell((cell) => {
-      cell.alignment = {
-        vertical: "top",
-        wrapText: true
+  // Right boxes
+  createSignatureBox(sheet, {
+    labelRange: "H6:H10",
+    boxRange: "I6:K10",
+    label: "COMPLIANCE",
+    signer: getSigner(signoffMap, "Business Unit Representative")
+  });
+
+  createSignatureBox(sheet, {
+    labelRange: "H12:H16",
+    boxRange: "I12:K16",
+    label: "DPO",
+    signer: getSigner(signoffMap, "DPO")
+  });
+
+  createSignatureBox(sheet, {
+    labelRange: "H19:H23",
+    boxRange: "I19:K23",
+    label: "HR",
+    signer: getSigner(signoffMap, "HR")
+  });
+
+  // Disclaimer 1
+  sheet.mergeCells("C25:L26");
+  sheet.getCell("C25").value =
+    "DISCLAIMER: All identified risks, findings and recommended controls are based on the disclosure of Vendor/IT supplier with the supervision of the requesting unit based on the initial questionnaire submitted.";
+  sheet.getCell("C25").alignment = {
+    horizontal: "center",
+    vertical: "middle",
+    wrapText: true
+  };
+  sheet.getCell("C25").font = {
+    size: 8
+  };
+
+  // Disclaimer 2
+  sheet.mergeCells("C28:L28");
+  sheet.getCell("C28").value =
+    "All identified Vendor/IT supplier risks, any open items are reflected in the Business unit's RCSAs and SLA Documentation.";
+  sheet.getCell("C28").alignment = {
+    horizontal: "center",
+    vertical: "middle",
+    wrapText: true
+  };
+  sheet.getCell("C28").font = {
+    size: 8
+  };
+
+  // Disclaimer 3
+  sheet.mergeCells("C30:L31");
+  sheet.getCell("C30").value =
+    "This signed document is a requirement for accreditation and onboarding of Vendor/IT supplier whose service engagement connects to the Company's network infrastructure/core systems and/or with exchange of data.";
+  sheet.getCell("C30").alignment = {
+    horizontal: "center",
+    vertical: "middle",
+    wrapText: true
+  };
+  sheet.getCell("C30").font = {
+    size: 8
+  };
+
+  // Bottom signature line
+  sheet.mergeCells("D33:K33");
+  sheet.getCell("D33").value =
+    "Signature above printed name of Business Unit Representative";
+  sheet.getCell("D33").fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FFD9D9D9" }
+  };
+  sheet.getCell("D33").font = {
+    underline: true,
+    size: 9
+  };
+  sheet.getCell("D33").alignment = {
+    horizontal: "center",
+    vertical: "middle"
+  };
+
+  // Row heights
+  for (let i = 1; i <= 34; i++) {
+    sheet.getRow(i).height = 20;
+  }
+
+  sheet.getRow(2).height = 28;
+  sheet.getRow(3).height = 28;
+  sheet.getRow(25).height = 25;
+  sheet.getRow(30).height = 28;
+
+  sheet.views = [];
+}
+
+function createSignatureBox(sheet, config) {
+  const { labelRange, boxRange, label, signer } = config;
+
+  sheet.mergeCells(labelRange);
+  sheet.mergeCells(boxRange);
+
+  const labelCell = sheet.getCell(labelRange.split(":")[0]);
+  const boxCell = sheet.getCell(boxRange.split(":")[0]);
+
+  labelCell.value = label;
+  labelCell.font = {
+    bold: true,
+    size: 9
+  };
+  labelCell.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FFDDEBF7" }
+  };
+  labelCell.alignment = {
+    horizontal: "center",
+    vertical: "middle",
+    textRotation: 90,
+    wrapText: true
+  };
+
+  boxCell.value = signer || "";
+  boxCell.alignment = {
+    horizontal: "center",
+    vertical: "middle",
+    wrapText: true
+  };
+  boxCell.font = {
+    bold: true,
+    size: 10
+  };
+
+  applyBorderToRange(sheet, labelRange, thickBorder());
+  applyBorderToRange(sheet, boxRange, thickBorder());
+}
+
+function getSigner(signoffMap, roleName) {
+  const item = signoffMap[roleName];
+
+  if (!item) {
+    return "";
+  }
+
+  if (item.signoff_status === "Signed") {
+    return item.signer_name || "";
+  }
+
+  if (item.signer_name) {
+    return `${item.signer_name}\n(${item.signoff_status || "Pending"})`;
+  }
+
+  return item.signoff_status || "";
+}
+
+function applyBorderToRange(sheet, range, borderStyle) {
+  const [start, end] = range.split(":");
+  const startCell = sheet.getCell(start);
+  const endCell = sheet.getCell(end);
+
+  const startRow = startCell.row;
+  const endRow = endCell.row;
+  const startCol = startCell.col;
+  const endCol = endCell.col;
+
+  for (let row = startRow; row <= endRow; row++) {
+    for (let col = startCol; col <= endCol; col++) {
+      sheet.getCell(row, col).border = borderStyle;
+    }
+  }
+}
+
+function applyOuterBorderToRange(sheet, range, borderStyle) {
+  const [start, end] = range.split(":");
+  const startCell = sheet.getCell(start);
+  const endCell = sheet.getCell(end);
+
+  const startRow = startCell.row;
+  const endRow = endCell.row;
+  const startCol = startCell.col;
+  const endCol = endCell.col;
+
+  for (let row = startRow; row <= endRow; row++) {
+    for (let col = startCol; col <= endCol; col++) {
+      const cell = sheet.getCell(row, col);
+
+      cell.border = {
+        top: row === startRow ? borderStyle.top : undefined,
+        bottom: row === endRow ? borderStyle.bottom : undefined,
+        left: col === startCol ? borderStyle.left : undefined,
+        right: col === endCol ? borderStyle.right : undefined
       };
-    });
-  });
+    }
+  }
+}
+
+function formatExcelDate(dateValue) {
+  if (!dateValue) return "N/A";
+
+  const date = new Date(dateValue);
+
+  if (Number.isNaN(date.getTime())) {
+    return String(dateValue);
+  }
+
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const year = date.getFullYear();
+
+  return `${month}/${day}/${year}`;
+}
+
+function thinBlackBorder() {
+  return {
+    top: { style: "thin", color: { argb: "FF000000" } },
+    left: { style: "thin", color: { argb: "FF000000" } },
+    bottom: { style: "thin", color: { argb: "FF000000" } },
+    right: { style: "thin", color: { argb: "FF000000" } }
+  };
+}
+
+function thickBorder() {
+  return {
+    top: { style: "medium", color: { argb: "FF000000" } },
+    left: { style: "medium", color: { argb: "FF000000" } },
+    bottom: { style: "medium", color: { argb: "FF000000" } },
+    right: { style: "medium", color: { argb: "FF000000" } }
+  };
+}
+
+function thinBorder() {
+  return {
+    top: { style: "thin", color: { argb: "FFB7B7B7" } },
+    left: { style: "thin", color: { argb: "FFB7B7B7" } },
+    bottom: { style: "thin", color: { argb: "FFB7B7B7" } },
+    right: { style: "thin", color: { argb: "FFB7B7B7" } }
+  };
 }
 
 // COMPANY SAVE REVIEW

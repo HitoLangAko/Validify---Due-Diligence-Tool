@@ -89,6 +89,9 @@ function applyRoleView() {
 
     vendorActions.classList.remove("hidden");
     companyActions.classList.add("hidden");
+
+    // Vendor should not see export button
+    exportExcelBtn.classList.add("hidden");
   } else {
     roleHelper.textContent =
       "Company employee page: review submitted vendor assessments.";
@@ -99,6 +102,9 @@ function applyRoleView() {
 
     vendorActions.classList.add("hidden");
     companyActions.classList.remove("hidden");
+
+    // Company employee can see export button
+    exportExcelBtn.classList.remove("hidden");
   }
 }
 
