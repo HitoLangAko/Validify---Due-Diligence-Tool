@@ -11,6 +11,9 @@ const saveVendorAnswersBtn = document.querySelector("#saveVendorAnswersBtn");
 const submitVendorAnswersBtn = document.querySelector("#submitVendorAnswersBtn");
 const saveCompanyReviewBtn = document.querySelector("#saveCompanyReviewBtn");
 
+const markReviewedBtn = document.querySelector("#markReviewedBtn");
+const approveAssessmentBtn = document.querySelector("#approveAssessmentBtn");
+
 const vendorList = document.querySelector("#vendorList");
 const vendorSelect = document.querySelector("#vendorSelect");
 const assessmentSelect = document.querySelector("#assessmentSelect");
@@ -329,6 +332,64 @@ saveCompanyReviewBtn.addEventListener("click", async function () {
   }
 });
 
+markReviewedBtn.addEventListener("click", async function () {
+  if (!activeAssessmentId) {
+    alert("Select an assessment first.");
+    return;
+  }
+
+  const confirmReview = confirm(
+    "Mark this assessment as Reviewed? This means the company review is completed."
+  );
+
+  if (!confirmReview) return;
+
+  const response = await fetch(`/assessments/${activeAssessmentId}/reviewed`, {
+    method: "PATCH"
+  });
+
+  const result = await response.json();
+  alert(result.message);
+
+  if (response.ok) {
+    activeAssessmentStatus = "Reviewed";
+    currentAssessment.textContent = `Active Assessment ID: ${activeAssessmentId} | Status: Reviewed`;
+
+    await loadAssessments();
+    await loadAssessmentAnswers(activeAssessmentId);
+    applyFieldPermissions();
+  }
+});
+
+approveAssessmentBtn.addEventListener("click", async function () {
+  if (!activeAssessmentId) {
+    alert("Select an assessment first.");
+    return;
+  }
+
+  const confirmApprove = confirm(
+    "Approve this assessment? This will mark the assessment as final."
+  );
+
+  if (!confirmApprove) return;
+
+  const response = await fetch(`/assessments/${activeAssessmentId}/approved`, {
+    method: "PATCH"
+  });
+
+  const result = await response.json();
+  alert(result.message);
+
+  if (response.ok) {
+    activeAssessmentStatus = "Approved";
+    currentAssessment.textContent = `Active Assessment ID: ${activeAssessmentId} | Status: Approved`;
+
+    await loadAssessments();
+    await loadAssessmentAnswers(activeAssessmentId);
+    applyFieldPermissions();
+  }
+});
+
 /* =========================
    LOAD VENDORS
 ========================= */
@@ -611,6 +672,8 @@ function applyFieldPermissions() {
   saveVendorAnswersBtn.disabled = true;
   submitVendorAnswersBtn.disabled = true;
   saveCompanyReviewBtn.disabled = true;
+  markReviewedBtn.disabled = true;
+  approveAssessmentBtn.disabled = true;
 
   if (!activeAssessmentId) {
     questionnaireHelper.textContent = "Select or create an assessment first.";
@@ -633,17 +696,31 @@ function applyFieldPermissions() {
   }
 
   if (currentUser.role === "company_employee") {
-    if (activeAssessmentStatus === "Draft") {
-      questionnaireHelper.textContent =
-        "Company mode: review is locked until the vendor submits the assessment.";
-    } else {
-      companyComments.forEach((field) => setDisabled(field, false));
+  if (activeAssessmentStatus === "Draft") {
+    questionnaireHelper.textContent =
+      "Company mode: review is locked until the vendor submits the assessment.";
+  } else if (activeAssessmentStatus === "Submitted") {
+    companyComments.forEach((field) => setDisabled(field, false));
 
-      saveCompanyReviewBtn.disabled = false;
+    saveCompanyReviewBtn.disabled = false;
+    markReviewedBtn.disabled = false;
+    approveAssessmentBtn.disabled = true;
 
-      questionnaireHelper.textContent =
-        "Company mode: vendor submitted the assessment. You may now add company comments.";
-    }
+    questionnaireHelper.textContent =
+      "Company mode: vendor submitted the assessment. Add company comments, then mark as reviewed.";
+  } else if (activeAssessmentStatus === "Reviewed") {
+    companyComments.forEach((field) => setDisabled(field, false));
+
+    saveCompanyReviewBtn.disabled = false;
+    markReviewedBtn.disabled = true;
+    approveAssessmentBtn.disabled = false;
+
+    questionnaireHelper.textContent =
+      "Company mode: assessment is reviewed. You may now approve it.";
+  } else if (activeAssessmentStatus === "Approved") {
+    questionnaireHelper.textContent =
+      "Company mode: this assessment is approved and finalized.";
+  }
   }
 }
 

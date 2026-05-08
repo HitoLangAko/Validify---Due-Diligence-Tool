@@ -363,3 +363,11 @@ button:disabled {
 .hidden {
   display: none !important;
 }
+
+.approved-btn {
+  background: #14532d;
+}
+
+.approved-btn:hover {
+  background: #0f3f22;
+}

@@ -346,32 +346,33 @@ app.patch("/assessments/:assessment_id/submit", requireRole("vendor"), (req, res
   });
 });
 
-app.patch("/assessments/:assessment_id/reviewed", requireRole("company_employee"), (req, res) => {
+// COMPANY MARK AS APPROVED
+app.patch("/assessments/:assessment_id/approved", requireRole("company_employee"), (req, res) => {
   const { assessment_id } = req.params;
 
   const sql = `
     UPDATE assessments
-    SET status = 'Reviewed'
+    SET status = 'Approved'
     WHERE assessment_id = ?
-    AND status = 'Submitted'
+    AND status = 'Reviewed'
   `;
 
   db.query(sql, [assessment_id], (err, result) => {
     if (err) {
-      console.error("Mark reviewed error:", err);
+      console.error("Approve assessment error:", err);
       return res.status(500).json({
-        message: "Failed to mark assessment as reviewed."
+        message: "Failed to approve assessment."
       });
     }
 
     if (result.affectedRows === 0) {
       return res.status(400).json({
-        message: "Only submitted assessments can be marked as reviewed."
+        message: "Only reviewed assessments can be approved."
       });
     }
 
     res.json({
-      message: "Assessment marked as reviewed. Export is now available."
+      message: "Assessment approved successfully. This is now final."
     });
   });
 });
