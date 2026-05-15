@@ -1,181 +1,582 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Vendor Due Diligence System</title>
-  <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>Validify Dashboard</title>
+
+  <link rel="stylesheet" href="style.css" />
+
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+  />
 </head>
+
 <body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-main">
+        <div class="brand">
+          <div class="brand-icon">
+            <i class="fa-solid fa-check"></i>
+          </div>
 
-  <main class="container">
+          <h1>Validify</h1>
+        </div>
 
-    <div class="user-bar">
-      <div>
-        Logged in as: <strong id="loggedUserName">Loading...</strong>
-        | Role: <strong id="loggedUserRole">Loading...</strong>
+        <nav class="nav-menu">
+          <button class="nav-link active" data-page="dashboard" type="button">
+            <i class="fa-solid fa-house"></i>
+            <span>Dashboard</span>
+          </button>
+
+          <button class="nav-link employee-only hidden" data-page="vendor-directory" type="button">
+            <i class="fa-solid fa-clipboard"></i>
+            <span>Vendor Directory</span>
+          </button>
+
+          <button class="nav-link employee-only hidden" data-page="assessment-reviews" type="button">
+            <i class="fa-solid fa-shield-halved"></i>
+            <span>Assessment Reviews</span>
+          </button>
+
+          <div class="nav-group employee-only hidden">
+            <button class="nav-link group-toggle" type="button" id="reportToggle">
+              <i class="fa-regular fa-file"></i>
+              <span>Reporting & Sign-offs</span>
+              <i class="fa-solid fa-chevron-down nav-arrow"></i>
+            </button>
+
+            <div class="sub-menu open" id="reportMenu">
+              <button class="sub-link" data-page="signoff-form" type="button">Form for Sign-off</button>
+              <button class="sub-link" data-page="audit-submit" type="button">Submit file to Audit Team</button>
+            </div>
+          </div>
+
+          <button class="nav-link vendor-only" data-page="vendor-info" type="button">
+            <i class="fa-solid fa-address-card"></i>
+            <span>Vendor Information</span>
+          </button>
+
+          <button class="nav-link vendor-only" data-page="create-assessment" type="button">
+            <i class="fa-solid fa-plus"></i>
+            <span>Create an assessment</span>
+          </button>
+
+          <div class="nav-group vendor-only">
+            <button class="nav-link group-toggle" type="button" id="ddfToggle">
+              <i class="fa-solid fa-folder-open"></i>
+              <span>Due Diligence Form</span>
+              <i class="fa-solid fa-chevron-down nav-arrow"></i>
+            </button>
+
+            <div class="sub-menu open" id="ddfMenu">
+              <button class="sub-link active" data-page="ddf-vendor-information" type="button">Vendor Information</button>
+              <button class="sub-link" data-page="consumer" type="button">Consumer</button>
+              <button class="sub-link" data-page="it-risk-management" type="button">IT Risk Management</button>
+              <button class="sub-link" data-page="compliance" type="button">Compliance</button>
+              <button class="sub-link" data-page="resiliency" type="button">Resiliency</button>
+              <button class="sub-link" data-page="data-privacy" type="button">Data Privacy</button>
+              <button class="sub-link" data-page="environmental-social-risk-management" type="button">Environmental and Social Risk Management</button>
+            </div>
+          </div>
+
+          <div class="nav-group vendor-only">
+            <button class="nav-link group-toggle" type="button" id="isToggle">
+              <i class="fa-solid fa-shield-halved"></i>
+              <span>Information Security</span>
+              <i class="fa-solid fa-chevron-down nav-arrow"></i>
+            </button>
+
+            <div class="sub-menu open" id="isMenu">
+              <button class="sub-link" data-page="information-security" type="button">Form for IS</button>
+            </div>
+          </div>
+
+          <button class="nav-link vendor-only" data-page="submit-forms" type="button">
+            <i class="fa-solid fa-file-circle-check"></i>
+            <span id="submitFormsNavText">Submit Forms</span>
+          </button>
+        </nav>
       </div>
 
-      <button id="logoutBtn">Logout</button>
-    </div>
+      <div class="sidebar-bottom">
+        <button class="account-button" type="button" id="accountToggle">
+          <div class="account-left">
+            <div class="account-avatar" id="accountAvatar">V</div>
 
-    <header class="page-header">
-      <h1>Vendor Due Diligence System</h1>
-      <p id="roleHelper">Loading role-based page...</p>
-    </header>
-
-    <section class="card vendor-only">
-      <h2>1. Vendor Information</h2>
-
-      <form id="vendorForm">
-        <div class="grid">
-          <div>
-            <label>Company Name</label>
-            <input type="text" id="company_name" required>
+            <div>
+              <strong>Account</strong>
+              <small id="accountRoleText">Vendor</small>
+            </div>
           </div>
 
-          <div>
-            <label>Company Website</label>
-            <input type="text" id="company_website">
+          <i class="fa-solid fa-chevron-right account-chevron"></i>
+        </button>
+
+        <div class="account-menu hidden" id="accountMenu">
+          <div class="account-menu-head">
+            <div class="account-menu-avatar" id="accountMenuAvatar">V</div>
+
+            <div class="account-menu-user">
+              <strong id="accountUserName">User</strong>
+              <small id="accountMenuRoleText">Vendor</small>
+            </div>
+
+            <i class="fa-solid fa-chevron-right"></i>
+          </div>
+
+          <div class="account-line"></div>
+
+          <button type="button">
+            <i class="fa-regular fa-user"></i>
+            <span>Profile</span>
+          </button>
+
+          <button type="button">
+            <i class="fa-solid fa-gear"></i>
+            <span>Settings</span>
+          </button>
+
+          <div class="account-line"></div>
+
+          <button type="button">
+            <i class="fa-regular fa-circle-question"></i>
+            <span>Help</span>
+          </button>
+
+          <button type="button" id="logoutBtn" class="logout-btn">
+            <i class="fa-solid fa-right-from-bracket"></i>
+            <span>Logout</span>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <div>
+          <p id="breadcrumb">Dashboard / Home</p>
+          <h2 id="pageTitle">Dashboard</h2>
+          <p class="muted" id="roleHelper">Loading role...</p>
+        </div>
+
+        <div class="top-actions">
+          <button class="icon-button" type="button">
+            <i class="fa-solid fa-moon"></i>
+          </button>
+
+          <button class="primary-action vendor-only" type="button" data-page="create-assessment">
+            <i class="fa-solid fa-plus"></i>
+            Create an assessment
+          </button>
+
+          <button class="primary-action employee-only hidden" type="button" id="generateEmployeeExcelBtn">
+            <i class="fa-solid fa-download"></i>
+            Generate Excel (.XLSX)
+          </button>
+        </div>
+      </header>
+
+      <section class="page active" id="dashboardPage">
+        <div class="stats-grid vendor-dashboard-cards" id="vendorStatsGrid">
+          <div class="stat-card">
+            <div>
+              <p>Total Created</p>
+              <h3 id="vendorStatCreated">0</h3>
+            </div>
+            <span class="stat-icon orange">
+              <i class="fa-regular fa-folder-open"></i>
+            </span>
+          </div>
+
+          <div class="stat-card">
+            <div>
+              <p>Total Drafted</p>
+              <h3 id="vendorStatDrafted">0</h3>
+            </div>
+            <span class="stat-icon gray">
+              <i class="fa-solid fa-pen"></i>
+            </span>
+          </div>
+
+          <div class="stat-card">
+            <div>
+              <p>Total Submitted</p>
+              <h3 id="vendorStatSubmitted">0</h3>
+            </div>
+            <span class="stat-icon purple">
+              <i class="fa-regular fa-paper-plane"></i>
+            </span>
+          </div>
+
+          <div class="stat-card">
+            <div>
+              <p>Total Reviewed</p>
+              <h3 id="vendorStatReviewed">0</h3>
+            </div>
+            <span class="stat-icon green">
+              <i class="fa-solid fa-check"></i>
+            </span>
           </div>
         </div>
 
-        <label>Product / Services Offered</label>
-        <textarea id="product_services_offered"></textarea>
-
-        <div class="grid">
-          <div>
-            <label>Contact Person Name</label>
-            <input type="text" id="contact_person_name">
+        <div class="stats-grid employee-dashboard-cards hidden" id="employeeStatsGrid">
+          <div class="stat-card">
+            <div>
+              <p>Total Vendor</p>
+              <h3 id="employeeStatVendor">0</h3>
+            </div>
+            <span class="stat-icon orange">
+              <i class="fa-solid fa-users"></i>
+            </span>
           </div>
 
-          <div>
-            <label>Contact Email</label>
-            <input type="email" id="contact_email">
+          <div class="stat-card">
+            <div>
+              <p>Total Submitted Assessments</p>
+              <h3 id="employeeStatSubmitted">0</h3>
+            </div>
+            <span class="stat-icon purple">
+              <i class="fa-regular fa-paper-plane"></i>
+            </span>
+          </div>
+
+          <div class="stat-card">
+            <div>
+              <p>Total Rejected Assessment</p>
+              <h3 id="employeeStatRejected">0</h3>
+            </div>
+            <span class="stat-icon red">
+              <i class="fa-solid fa-xmark"></i>
+            </span>
+          </div>
+
+          <div class="stat-card">
+            <div>
+              <p>Total Reviewed Assessment</p>
+              <h3 id="employeeStatReviewed">0</h3>
+            </div>
+            <span class="stat-icon green">
+              <i class="fa-solid fa-check"></i>
+            </span>
+          </div>
+
+          <div class="stat-card">
+            <div>
+              <p>Total Reported to Audit Team</p>
+              <h3 id="employeeStatAudit">0</h3>
+            </div>
+            <span class="stat-icon blue">
+              <i class="fa-solid fa-clipboard-check"></i>
+            </span>
           </div>
         </div>
 
-        <label>Contact Phone</label>
-        <input type="text" id="contact_phone">
+        <div class="content-card">
+          <h3 id="dashboardTableTitle">Recent Assessments</h3>
 
-        <button type="submit">Save Vendor</button>
-      </form>
-    </section>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Assessment Name & Vendor</th>
+                  <th>Type</th>
+                  <th>Date Modified</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
 
-    <section class="card">
-      <h2>2. Assessment</h2>
+              <tbody id="recentAssessmentsBody">
+                <tr>
+                  <td colspan="5" class="empty-cell">No assessments yet.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
 
-      <form id="assessmentForm" class="vendor-only">
-        <label>Select Vendor</label>
-        <select id="vendorSelect" required>
-          <option value="">Select a vendor</option>
-        </select>
+      <section class="page" id="vendorDirectoryPage">
+        <div class="vendor-directory-card">
+          <div class="vendor-directory-top">
+            <div class="vendor-search-area">
+              <label>Search for vendor</label>
 
-        <div class="grid">
-          <div>
-            <label>Assessment Date</label>
-            <input type="date" id="assessment_date" required>
+              <div class="vendor-search-box">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" id="vendorSearchInput" />
+              </div>
+            </div>
+
+            <button type="button" class="add-vendor-btn" id="addVendorBtn">
+              <i class="fa-solid fa-plus"></i>
+              Add Vendor
+            </button>
           </div>
 
-          <div>
-            <label>Purpose</label>
-            <select id="purpose" required>
-              <option value="">Select purpose</option>
-              <option value="Accreditation">Accreditation</option>
-              <option value="Re-accreditation">Re-accreditation</option>
-              <option value="New Contract">New Contract</option>
-              <option value="Renewal">Renewal</option>
-            </select>
+          <div class="vendor-directory-table-wrap">
+            <table class="vendor-directory-table">
+              <thead>
+                <tr>
+                  <th>COMPANY NAME</th>
+                  <th>SERVICES</th>
+                  <th>CONTACT</th>
+                  <th>DATE</th>
+                </tr>
+              </thead>
+
+              <tbody id="vendorDirectoryBody">
+                <tr>
+                  <td colspan="4" class="empty-cell">No vendors found.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="page" id="assessmentReviewsPage">
+        <div class="review-selector-card">
+          <h3>Assessment Selector</h3>
+
+          <div class="review-selector-grid">
+            <div class="field-group">
+              <label>Select Vendor</label>
+              <select id="reviewVendorSelect">
+                <option value="">Select Vendor</option>
+              </select>
+            </div>
+
+            <div class="field-group">
+              <label>Date Reviewed</label>
+              <input type="date" id="reviewDateInput" />
+            </div>
           </div>
         </div>
 
-        <button type="submit">Create Assessment</button>
-      </form>
+        <div class="review-card">
+          <h3>Questionnaire Review</h3>
 
-      <label>Select Existing Assessment</label>
-      <select id="assessmentSelect">
-        <option value="">Select assessment</option>
-      </select>
+          <div class="review-tabs">
+            <button type="button" class="review-tab active" data-review-tab="ddf">Due Diligence Form</button>
+            <button type="button" class="review-tab" data-review-tab="infosec">Information Security</button>
+            <button type="button" class="review-tab" data-review-tab="signoff">Sign-Off Sheet</button>
+          </div>
 
-      <p id="currentAssessment" class="notice">No active assessment selected.</p>
-      <button type="button" id="exportExcelBtn">
-        Export Assessment to Excel
-      </button>
-    </section>
+          <div class="review-scroll" id="reviewTabContent"></div>
+        </div>
+      </section>
 
-    <section class="card">
-  <h2>3. Questionnaire</h2>
-  <p class="helper" id="questionnaireHelper">
-    Select or create an assessment first.
-  </p>
+      <section class="page" id="signoffFormPage">
+        <div class="signoff-card">
+          <div class="signoff-heading">
+            <h3>Sign-off Authorization</h3>
+            <p>Please provide your digital signature details to finalize approval.</p>
+          </div>
 
-  <form id="questionnaireForm">
+          <form id="signoffForm">
+            <div class="field-group">
+              <label>Department / Role</label>
+              <select id="signoffRole">
+                <option value="">Select Role</option>
+                <option value="IT">IT</option>
+                <option value="Info Sec">Info Sec</option>
+                <option value="Risk Management Officer">Risk Management Officer</option>
+                <option value="Compliance">Compliance</option>
+                <option value="DPO">DPO</option>
+                <option value="HR">HR</option>
+              </select>
+            </div>
 
-    <div class="form-tabs">
-      <button type="button" class="form-tab active" data-tab="Due Diligence Form">
-        Due Diligence Form
-      </button>
+            <div class="field-group">
+              <label>Signer's Full Name</label>
+              <input type="text" id="signoffName" placeholder="Enter Full Name" />
+            </div>
 
-      <button type="button" class="form-tab" data-tab="Information Security">
-        Information Security
-      </button>
+            <div class="field-group">
+              <label>Approval Decision</label>
 
-      <button type="button" class="form-tab" data-tab="Sign-off Sheet">
-        Sign-off Sheet
-      </button>
-    </div>
+              <div class="radio-row">
+                <label>
+                  <input type="radio" name="approvalDecision" value="Signed" checked />
+                  Approve and Sign
+                </label>
 
-    <div id="questionsContainer"></div>
+                <label>
+                  <input type="radio" name="approvalDecision" value="Pending" />
+                  Keep Pending
+                </label>
+              </div>
+            </div>
 
-    <div id="signoffContainer" class="hidden">
-      <h3>Sign-off Sheet</h3>
-      <p class="helper">
-        Company employees can complete the sign-off sheet after reviewing the assessment.
-      </p>
+            <div class="field-group">
+              <label>Digital Signature</label>
 
-      <div id="signoffFields"></div>
+              <label class="upload-signature-btn">
+                <i class="fa-solid fa-upload"></i>
+                <span id="signatureFileName">Upload Signature</span>
+                <input type="file" id="signatureFile" hidden />
+              </label>
+            </div>
 
-      <button type="button" id="saveSignoffBtn" class="company-btn">
-        Save Sign-off Sheet
-      </button>
-    </div>
+            <div class="form-action-row signoff-actions">
+              <button type="button" class="cancel-btn" id="cancelSignoffBtn">Cancel</button>
+              <button type="submit" class="confirm-btn">Confirm & Sign-Off</button>
+            </div>
+          </form>
+        </div>
+      </section>
 
-    <div class="vendor-actions">
-      <button type="button" id="saveVendorAnswersBtn" class="save-all-btn">
-        Save Vendor Draft Answers
-      </button>
+      <section class="page" id="auditSubmitPage">
+        <div class="audit-card">
+          <h3>Assessment Summary</h3>
 
-      <button type="button" id="submitVendorAnswersBtn">
-        Submit Vendor Answers
-      </button>
-    </div>
+          <div class="audit-line"></div>
 
-    <div class="company-actions">
-  <button type="button" id="saveCompanyReviewBtn" class="company-btn">
-    Save Company Review
-  </button>
+          <div class="audit-summary-grid">
+            <strong>Vendor Name:</strong>
+            <span id="auditVendorName">N/A</span>
 
-  <button type="button" id="markReviewedBtn" class="company-btn">
-    Mark as Reviewed
-  </button>
+            <strong>Service Type:</strong>
+            <span id="auditServiceType">N/A</span>
 
-  <button type="button" id="approveAssessmentBtn" class="company-btn approved-btn">
-    Approve Assessment
-  </button>
-</div>
-  </form>
-</section>
+            <strong>Due Diligence Form:</strong>
+            <span id="auditDDFStatus">N/A</span>
 
-    <section class="card vendor-only">
-      <h2>4. Saved Vendors</h2>
-      <div id="vendorList"></div>
-    </section>
+            <strong>Information Security:</strong>
+            <span id="auditISStatus">N/A</span>
 
-    <section class="card">
-      <h2>5. Assessments</h2>
-      <div id="assessmentList"></div>
-    </section>
-  </main>
+            <strong>Sign-Off Sheet:</strong>
+            <span id="auditSignoffStatus">N/A</span>
+          </div>
 
+          <div class="audit-actions">
+            <button type="button" class="cancel-btn" id="cancelAuditBtn">Cancel</button>
+            <button type="button" class="confirm-btn" id="submitAuditBtn">Submit to Audit</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="page" id="vendorInfoPage">
+        <div class="content-card form-card-small">
+          <h3>Vendor Information</h3>
+
+          <form id="vendorInfoForm">
+            <div class="form-grid two-col">
+              <div class="field-group">
+                <label>Company Name</label>
+                <input type="text" id="companyName" placeholder="Enter company name" />
+              </div>
+
+              <div class="field-group">
+                <label>Company Website</label>
+                <input type="text" id="companyWebsite" placeholder="e.g., https://example.com" />
+              </div>
+            </div>
+
+            <div class="field-group">
+              <label>Product / Services Offered</label>
+              <textarea id="productServices" placeholder="Describe your core business offerings and services"></textarea>
+            </div>
+
+            <div class="form-grid two-col">
+              <div class="field-group">
+                <label>Contact Person Name</label>
+                <input type="text" id="contactName" placeholder="e.g., Mark Santos" />
+              </div>
+
+              <div class="field-group">
+                <label>Contact Email</label>
+                <input type="email" id="contactEmail" placeholder="e.g., name@email.com" />
+              </div>
+            </div>
+
+            <div class="form-grid two-col one-short">
+              <div class="field-group">
+                <label>Contact Number</label>
+                <input type="text" id="contactNumber" placeholder="e.g., +63 917 123 4567" />
+              </div>
+            </div>
+
+            <button type="submit" class="full-button">Save Vendor</button>
+          </form>
+        </div>
+      </section>
+
+      <section class="page" id="createAssessmentPage">
+        <div class="stack">
+          <div class="content-card form-card-small">
+            <h3>Assessment</h3>
+
+            <form id="assessmentForm">
+              <div class="field-group">
+                <label>Select Vendor</label>
+                <select id="assessmentVendor">
+                  <option value="">Select a Vendor</option>
+                </select>
+              </div>
+
+              <div class="form-grid two-col">
+                <div class="field-group">
+                  <label>Assessment Date</label>
+                  <input type="date" id="assessmentDate" />
+                </div>
+
+                <div class="field-group">
+                  <label>Purpose</label>
+                  <select id="assessmentPurpose">
+                    <option value="">Select purpose</option>
+                    <option value="Accreditation">Accreditation</option>
+                    <option value="Re-accreditation">Re-accreditation</option>
+                    <option value="New Contract">New Contract</option>
+                    <option value="Renewal">Renewal</option>
+                  </select>
+                </div>
+              </div>
+
+              <button type="submit" class="full-button">Create Assessment</button>
+            </form>
+          </div>
+
+          <div class="content-card form-card-small">
+            <div class="field-group">
+              <label>Select Existing Assessment</label>
+              <select id="existingAssessment">
+                <option value="">Select Assessment</option>
+              </select>
+            </div>
+
+            <p class="muted" id="activeAssessmentText">No active assessment selected.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="page" id="formPage">
+        <div id="formPanel"></div>
+      </section>
+
+      <section class="page" id="submitFormsPage">
+        <div class="content-card wide-card">
+          <h3 id="submitFormsTitle">Submit Forms</h3>
+          <p class="muted" id="submitFormsDescription">
+            Review all saved DDF and Information Security answers before submitting.
+          </p>
+
+          <div id="submitSummary" class="submit-summary"></div>
+
+          <button type="button" id="submitAllBtn" class="submit-button vendor-only">
+            Submit All Forms
+          </button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
