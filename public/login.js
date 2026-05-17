@@ -1,241 +1,105 @@
-document.addEventListener("DOMContentLoaded", () => {
-  const loginForm = document.querySelector("#loginForm");
-  const registerForm = document.querySelector("#registerForm");
+const loginForm = document.getElementById("loginForm");
+const registerForm = document.getElementById("registerForm");
+const messageBox = document.getElementById("messageBox");
+const authTitle = document.getElementById("authTitle");
 
-  const showRegisterBtn = document.querySelector("#showRegisterBtn");
-  const showLoginBtn = document.querySelector("#showLoginBtn");
+document.querySelectorAll("[data-auth-tab]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const tab = button.dataset.authTab;
 
-  const loginMessage = document.querySelector("#loginMessage");
-  const registerMessage = document.querySelector("#registerMessage");
+    document.querySelectorAll("[data-auth-tab]").forEach((item) => {
+      item.classList.toggle("active", item.dataset.authTab === tab);
+    });
 
-  if (!loginForm || !registerForm || !showRegisterBtn || !showLoginBtn) {
-    console.error("Login/Register elements are missing. Check login.html IDs.");
-    return;
-  }
+    loginForm.classList.toggle("active", tab === "login");
+    registerForm.classList.toggle("active", tab === "register");
 
-  function showMessage(element, message, type = "error") {
-    element.textContent = message;
-    element.classList.remove("hidden", "success", "error");
-    element.classList.add(type);
-  }
-
-  function clearMessages() {
-    loginMessage.classList.add("hidden");
-    registerMessage.classList.add("hidden");
-    loginMessage.textContent = "";
-    registerMessage.textContent = "";
-  }
-
-  showRegisterBtn.addEventListener("click", () => {
-    clearMessages();
-    loginForm.classList.add("hidden");
-    registerForm.classList.remove("hidden");
-  });
-
-  showLoginBtn.addEventListener("click", () => {
-    clearMessages();
-    registerForm.classList.add("hidden");
-    loginForm.classList.remove("hidden");
-  });
-
-  loginForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-
-    clearMessages();
-
-    const email = document.querySelector("#loginEmail").value;
-    const password = document.querySelector("#loginPassword").value;
-
-    try {
-      const response = await fetch("/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          email,
-          password
-        })
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        showMessage(loginMessage, result.message || "Login failed.", "error");
-        return;
-      }
-
-      showMessage(loginMessage, "Login successful. Redirecting...", "success");
-
-      setTimeout(() => {
-        window.location.href = "/index.html";
-      }, 500);
-    } catch (error) {
-      showMessage(loginMessage, "Unable to connect to the server.", "error");
-    }
-  });
-
-  registerForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-
-    clearMessages();
-
-    const full_name = document.querySelector("#registerFullName").value;
-    const email = document.querySelector("#registerEmail").value;
-    const password = document.querySelector("#registerPassword").value;
-    const role = document.querySelector("#registerRole").value;
-
-    try {
-      const response = await fetch("/register", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          full_name,
-          email,
-          password,
-          role
-        })
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        showMessage(registerMessage, result.message || "Registration failed.", "error");
-        return;
-      }
-
-      showMessage(registerMessage, result.message || "Account created successfully.", "success");
-
-      setTimeout(() => {
-        registerForm.reset();
-        registerForm.classList.add("hidden");
-        loginForm.classList.remove("hidden");
-        showMessage(loginMessage, "Account created. Please log in.", "success");
-      }, 900);
-    } catch (error) {
-      showMessage(registerMessage, "Unable to connect to the server.", "error");
-    }
-  });
-});document.addEventListener("DOMContentLoaded", () => {
-  const loginForm = document.querySelector("#loginForm");
-  const registerForm = document.querySelector("#registerForm");
-
-  const showRegisterBtn = document.querySelector("#showRegisterBtn");
-  const showLoginBtn = document.querySelector("#showLoginBtn");
-
-  const loginMessage = document.querySelector("#loginMessage");
-  const registerMessage = document.querySelector("#registerMessage");
-
-  if (!loginForm || !registerForm || !showRegisterBtn || !showLoginBtn) {
-    console.error("Login/Register elements are missing. Check login.html IDs.");
-    return;
-  }
-
-  function showMessage(element, message, type = "error") {
-    element.textContent = message;
-    element.classList.remove("hidden", "success", "error");
-    element.classList.add(type);
-  }
-
-  function clearMessages() {
-    loginMessage.classList.add("hidden");
-    registerMessage.classList.add("hidden");
-    loginMessage.textContent = "";
-    registerMessage.textContent = "";
-  }
-
-  showRegisterBtn.addEventListener("click", () => {
-    clearMessages();
-    loginForm.classList.add("hidden");
-    registerForm.classList.remove("hidden");
-  });
-
-  showLoginBtn.addEventListener("click", () => {
-    clearMessages();
-    registerForm.classList.add("hidden");
-    loginForm.classList.remove("hidden");
-  });
-
-  loginForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-
-    clearMessages();
-
-    const email = document.querySelector("#loginEmail").value;
-    const password = document.querySelector("#loginPassword").value;
-
-    try {
-      const response = await fetch("/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          email,
-          password
-        })
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        showMessage(loginMessage, result.message || "Login failed.", "error");
-        return;
-      }
-
-      showMessage(loginMessage, "Login successful. Redirecting...", "success");
-
-      setTimeout(() => {
-        window.location.href = "/index.html";
-      }, 500);
-    } catch (error) {
-      showMessage(loginMessage, "Unable to connect to the server.", "error");
-    }
-  });
-
-  registerForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-
-    clearMessages();
-
-    const full_name = document.querySelector("#registerFullName").value;
-    const email = document.querySelector("#registerEmail").value;
-    const password = document.querySelector("#registerPassword").value;
-    const role = document.querySelector("#registerRole").value;
-
-    try {
-      const response = await fetch("/register", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          full_name,
-          email,
-          password,
-          role
-        })
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        showMessage(registerMessage, result.message || "Registration failed.", "error");
-        return;
-      }
-
-      showMessage(registerMessage, result.message || "Account created successfully.", "success");
-
-      setTimeout(() => {
-        registerForm.reset();
-        registerForm.classList.add("hidden");
-        loginForm.classList.remove("hidden");
-        showMessage(loginMessage, "Account created. Please log in.", "success");
-      }, 900);
-    } catch (error) {
-      showMessage(registerMessage, "Unable to connect to the server.", "error");
-    }
+    authTitle.textContent = tab === "login" ? "Login" : "Create an Account";
+    clearMessage();
   });
 });
+
+function showMessage(message, type = "error") {
+  messageBox.textContent = message;
+  messageBox.className = `message show ${type}`;
+}
+
+function clearMessage() {
+  messageBox.textContent = "";
+  messageBox.className = "message";
+}
+
+async function api(url, options = {}) {
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {})
+    }
+  });
+
+  let data = null;
+
+  try {
+    data = await response.json();
+  } catch (error) {
+    data = null;
+  }
+
+  if (!response.ok) {
+    throw new Error(data?.message || "Request failed.");
+  }
+
+  return data;
+}
+
+if (loginForm) {
+  loginForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    clearMessage();
+
+    const payload = {
+      email: document.getElementById("loginEmail").value.trim(),
+      password: document.getElementById("loginPassword").value
+    };
+
+    try {
+      await api("/login", {
+        method: "POST",
+        body: JSON.stringify(payload)
+      });
+
+      window.location.href = "index.html";
+    } catch (error) {
+      showMessage(error.message || "Failed to login.");
+    }
+  });
+}
+
+if (registerForm) {
+  registerForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    clearMessage();
+
+    const payload = {
+      full_name: document.getElementById("registerName").value.trim(),
+      email: document.getElementById("registerEmail").value.trim(),
+      password: document.getElementById("registerPassword").value,
+      role: document.getElementById("registerRole").value
+    };
+
+    try {
+      const data = await api("/register", {
+        method: "POST",
+        body: JSON.stringify(payload)
+      });
+
+      showMessage(data.message || "Account created. You can now log in.", "success");
+      registerForm.reset();
+
+      document.querySelector('[data-auth-tab="login"]').click();
+    } catch (error) {
+      showMessage(error.message || "Failed to register account.");
+    }
+  });
+}
