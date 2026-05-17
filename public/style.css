@@ -2041,3 +2041,63 @@ body[data-role="employee"] .top-actions .employee-only {
     grid-template-columns: 1fr;
   }
 }
+
+/* INFOSEC ASSESSMENT FORM UPDATES */
+
+.assessment-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(240px, 1fr));
+  gap: 22px 28px;
+  margin-bottom: 18px;
+}
+
+.existing-assessment-panel {
+  background: #f8fafc;
+  border: 1px solid #dfe5ee;
+  border-radius: 13px;
+  padding: 18px 20px 2px;
+  margin: 0 0 18px;
+}
+
+.currently-assessing-card {
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  border-radius: 14px;
+  padding: 16px 18px;
+  margin: 0 0 22px;
+}
+
+.currently-assessing-card span {
+  display: block;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 900;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.currently-assessing-card strong {
+  display: block;
+  color: #10182f;
+  font-size: 20px;
+  font-weight: 900;
+  margin-bottom: 4px;
+}
+
+.currently-assessing-card small {
+  color: #475569;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+#infosecAssessmentDate[readonly],
+#infosecAssessmentCode[readonly] {
+  background: #f8fafc;
+}
+
+@media (max-width: 900px) {
+  .assessment-meta-grid {
+    grid-template-columns: 1fr;
+  }
+}

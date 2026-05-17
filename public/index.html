@@ -334,6 +334,11 @@
             </div>
 
             <div class="field-group">
+              <label>Assessment Date</label>
+              <input type="date" id="infosecAssessmentDate" readonly />
+            </div>
+
+            <div class="field-group">
               <label>Select Vendor</label>
               <select id="infosecVendorSelect"></select>
             </div>
@@ -342,11 +347,19 @@
               <label>Purpose</label>
               <input type="text" id="infosecPurpose" value="Information Security" />
             </div>
+          </div>
 
+          <div class="existing-assessment-panel">
             <div class="field-group">
               <label>Select Existing Assessment</label>
               <select id="existingInfoSecAssessment"></select>
             </div>
+          </div>
+
+          <div class="currently-assessing-card" id="currentlyAssessingCard">
+            <span>Vendor Being Assessed</span>
+            <strong id="currentlyAssessingVendor">Select a vendor to assess</strong>
+            <small id="currentlyAssessingServices">The selected vendor details will appear here.</small>
           </div>
 
           <form id="infosecForm">

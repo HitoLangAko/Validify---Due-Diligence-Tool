@@ -97,9 +97,12 @@ const pendingApprovalBody = document.getElementById("pendingApprovalBody");
 
 const infosecAssessmentPage = document.getElementById("infosecAssessmentPage");
 const infosecAssessmentCode = document.getElementById("infosecAssessmentCode");
+const infosecAssessmentDate = document.getElementById("infosecAssessmentDate");
 const infosecVendorSelect = document.getElementById("infosecVendorSelect");
 const infosecPurpose = document.getElementById("infosecPurpose");
 const existingInfoSecAssessment = document.getElementById("existingInfoSecAssessment");
+const currentlyAssessingVendor = document.getElementById("currentlyAssessingVendor");
+const currentlyAssessingServices = document.getElementById("currentlyAssessingServices");
 const infosecForm = document.getElementById("infosecForm");
 const infosecQuestionsWrap = document.getElementById("infosecQuestionsWrap");
 const cancelInfoSecAssessmentBtn = document.getElementById("cancelInfoSecAssessmentBtn");
@@ -140,6 +143,16 @@ function formatDate(value) {
     day: "2-digit",
     year: "numeric"
   });
+}
+
+function formatDateForInput(value) {
+  const date = value ? new Date(value) : new Date();
+
+  if (Number.isNaN(date.getTime())) {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  return date.toISOString().slice(0, 10);
 }
 
 function statusClass(value) {
@@ -551,6 +564,21 @@ function populateInfoSecAssessmentDropdowns() {
   }
 }
 
+function updateCurrentlyAssessingCard(assessment) {
+  if (!assessment) return;
+
+  const vendorName = assessment.company_name || "Selected Vendor";
+  const services = assessment.product_services_offered || "No service details provided.";
+
+  if (currentlyAssessingVendor) {
+    currentlyAssessingVendor.textContent = vendorName;
+  }
+
+  if (currentlyAssessingServices) {
+    currentlyAssessingServices.textContent = services;
+  }
+}
+
 async function startInfoSecAssessment(vendorId) {
   try {
     const assessment = await api("/infosec/assessments/start", {
@@ -566,6 +594,7 @@ async function startInfoSecAssessment(vendorId) {
 
     if (infosecAssessmentPage) infosecAssessmentPage.classList.remove("hidden");
     if (infosecAssessmentCode) infosecAssessmentCode.value = assessment.assessment_code || "";
+    if (infosecAssessmentDate) infosecAssessmentDate.value = formatDateForInput(assessment.created_at || new Date());
     if (infosecVendorSelect) infosecVendorSelect.value = String(vendorId);
     if (infosecPurpose) infosecPurpose.value = assessment.purpose || "Information Security";
 
@@ -586,9 +615,11 @@ async function loadInfoSecAssessment(assessmentId) {
   });
 
   if (infosecAssessmentCode) infosecAssessmentCode.value = activeInfoSecAssessment.assessment_code || "";
+  if (infosecAssessmentDate) infosecAssessmentDate.value = formatDateForInput(activeInfoSecAssessment.created_at || activeInfoSecAssessment.submitted_at || new Date());
   if (infosecVendorSelect) infosecVendorSelect.value = String(activeInfoSecAssessment.vendor_id);
   if (infosecPurpose) infosecPurpose.value = activeInfoSecAssessment.purpose || "Information Security";
 
+  updateCurrentlyAssessingCard(activeInfoSecAssessment);
   renderInfoSecFormQuestions();
 }
 
