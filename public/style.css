@@ -2125,3 +2125,30 @@ body[data-role="employee"] .top-actions .employee-only {
 .assessment-create-row .submit-draft-btn {
   width: 220px;
 }
+
+/* VENDOR ASSESSMENT PAGE FIXES */
+
+#vendorAssessmentPage.active {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
+
+#vendorAssessmentPage .content-card {
+  margin-bottom: 0;
+}
+
+.assessment-create-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 58px;
+}
+
+.assessment-create-row .submit-draft-btn {
+  width: 220px;
+  height: 54px;
+}
+
+.existing-assessment-card {
+  margin-top: 6px;
+}
