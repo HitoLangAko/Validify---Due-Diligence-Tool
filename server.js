@@ -948,26 +948,19 @@ app.post("/answers/vendor-save", requireRole("vendor"), (req, res) => {
     return res.status(400).json({ message: "Invalid vendor answer data." });
   }
 
-  const validAnswers = answers.filter(
-    (answer) =>
-      answer.question_id &&
-      answer.vendor_response !== undefined &&
-      answer.vendor_response !== null
-  );
-
-  if (validAnswers.length === 0) {
-    return res.status(400).json({
-      message: "No valid vendor answers to save. Please make sure questions are loaded from the database."
-    });
+  if (answers.length === 0) {
+    return res.status(400).json({ message: "No vendor answers to save." });
   }
 
   const checkSql = `
-    SELECT status
-    FROM assessments
-    WHERE assessment_id = ?
+    SELECT a.status
+    FROM assessments a
+    JOIN vendors v ON a.vendor_id = v.vendor_id
+    WHERE a.assessment_id = ?
+    AND v.user_id = ?
   `;
 
-  db.query(checkSql, [assessment_id], (err, results) => {
+  db.query(checkSql, [assessment_id, req.session.user.user_id], (err, results) => {
     if (err) {
       console.error("Check assessment error:", err);
       return res.status(500).json({ message: "Failed to check assessment." });
@@ -983,7 +976,7 @@ app.post("/answers/vendor-save", requireRole("vendor"), (req, res) => {
       });
     }
 
-    const values = validAnswers.map((answer) => [
+    const values = answers.map((answer) => [
       assessment_id,
       answer.question_id,
       answer.vendor_response || null
@@ -994,7 +987,8 @@ app.post("/answers/vendor-save", requireRole("vendor"), (req, res) => {
       (
         assessment_id,
         question_id,
-        vendor_response
+        vendor_response,
+        answered_at
       )
       VALUES ?
       ON DUPLICATE KEY UPDATE
@@ -1002,12 +996,11 @@ app.post("/answers/vendor-save", requireRole("vendor"), (req, res) => {
         answered_at = CURRENT_TIMESTAMP
     `;
 
-    db.query(sql, [values], (err) => {
-      if (err) {
-        console.error("Save vendor answers error:", err);
+    db.query(sql, [values], (saveErr) => {
+      if (saveErr) {
+        console.error("Save vendor answers error:", saveErr);
         return res.status(500).json({
-          message: "Failed to save vendor answers.",
-          error: err.message
+          message: "Failed to save vendor answers."
         });
       }
 
