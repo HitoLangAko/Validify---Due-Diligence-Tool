@@ -112,6 +112,9 @@ const signatureFile = document.getElementById("signatureFile");
 const signatureFileName = document.getElementById("signatureFileName");
 const cancelSignoffBtn = document.getElementById("cancelSignoffBtn");
 
+const createInfoSecAssessmentBtn = document.getElementById("createInfoSecAssessmentBtn");
+const infosecAssessmentDate = document.getElementById("infosecAssessmentDate");
+
 function getRoleLabel(role) {
   return roleLabels[role] || role || "User";
 }
@@ -142,6 +145,75 @@ function formatDate(value) {
     month: "short",
     day: "2-digit",
     year: "numeric"
+  });
+}
+
+function formatAssessmentDate(value = new Date()) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return date.toLocaleDateString("en-GB");
+}
+
+if (createInfoSecAssessmentBtn) {
+  createInfoSecAssessmentBtn.addEventListener("click", async () => {
+    const vendorId = infosecVendorSelect?.value || "";
+    const purpose = infosecPurpose?.value || "";
+
+    if (!vendorId) {
+      alert("Please select a vendor first.");
+      return;
+    }
+
+    if (!purpose) {
+      alert("Please select a purpose first.");
+      return;
+    }
+
+    try {
+      const assessment = await api("/infosec/assessments/start", {
+        method: "POST",
+        body: JSON.stringify({
+          vendor_id: vendorId,
+          purpose,
+          force_new: true
+        })
+      });
+
+      activeInfoSecAssessment = assessment;
+      activeInfoSecAnswers = {};
+
+      if (infosecAssessmentCode) {
+        infosecAssessmentCode.value = assessment.assessment_code || "";
+      }
+
+      if (infosecAssessmentDate) {
+        infosecAssessmentDate.value = formatAssessmentDate(assessment.created_at || new Date());
+      }
+
+      await loadInfoSecData();
+
+      if (infosecVendorSelect) {
+        infosecVendorSelect.value = String(vendorId);
+      }
+
+      if (infosecPurpose) {
+        infosecPurpose.value = purpose;
+      }
+
+      if (existingInfoSecAssessment) {
+        existingInfoSecAssessment.value = String(assessment.assessment_id);
+      }
+
+      await loadInfoSecAssessment(assessment.assessment_id);
+
+      showToast("Assessment created.");
+    } catch (error) {
+      alert(error.message);
+    }
   });
 }
 

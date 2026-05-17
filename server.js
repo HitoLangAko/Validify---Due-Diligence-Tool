@@ -718,10 +718,65 @@ app.get("/infosec/queue", requireRole("infosec"), (req, res) => {
 });
 
 app.post("/infosec/assessments/start", requireRole("infosec"), (req, res) => {
-  const { vendor_id, purpose } = req.body;
+  const { vendor_id, purpose, force_new } = req.body;
 
   if (!vendor_id) {
     return res.status(400).json({ message: "Vendor is required." });
+  }
+
+  function createNewAssessment() {
+    const insertSql = `
+      INSERT INTO infosec_assessments
+      (
+        vendor_id,
+        submitted_by_user_id,
+        purpose,
+        status
+      )
+      VALUES (?, ?, ?, 'Draft')
+    `;
+
+    db.query(
+      insertSql,
+      [vendor_id, req.session.user.user_id, purpose || "Accreditation"],
+      (insertErr, result) => {
+        if (insertErr) {
+          console.error("Start assessment error:", insertErr);
+          return res.status(500).json({ message: "Failed to start assessment." });
+        }
+
+        const assessmentId = result.insertId;
+        const assessmentCode = `IA-${String(assessmentId).padStart(3, "0")}`;
+
+        const updateSql = `
+          UPDATE infosec_assessments
+          SET assessment_code = ?
+          WHERE assessment_id = ?
+        `;
+
+        db.query(updateSql, [assessmentCode, assessmentId], (updateErr) => {
+          if (updateErr) {
+            console.error("Update assessment code error:", updateErr);
+            return res.status(500).json({ message: "Failed to create assessment ID." });
+          }
+
+          res.json({
+            assessment_id: assessmentId,
+            assessment_code: assessmentCode,
+            vendor_id,
+            submitted_by_user_id: req.session.user.user_id,
+            purpose: purpose || "Accreditation",
+            status: "Draft",
+            created_at: new Date().toISOString()
+          });
+        });
+      }
+    );
+  }
+
+  if (force_new) {
+    createNewAssessment();
+    return;
   }
 
   const findDraftSql = `
@@ -744,48 +799,7 @@ app.post("/infosec/assessments/start", requireRole("infosec"), (req, res) => {
       return res.json(drafts[0]);
     }
 
-    const insertSql = `
-      INSERT INTO infosec_assessments
-      (
-        vendor_id,
-        submitted_by_user_id,
-        purpose,
-        status
-      )
-      VALUES (?, ?, ?, 'Draft')
-    `;
-
-    db.query(insertSql, [vendor_id, req.session.user.user_id, purpose || "Information Security"], (insertErr, result) => {
-      if (insertErr) {
-        console.error("Start assessment error:", insertErr);
-        return res.status(500).json({ message: "Failed to start assessment." });
-      }
-
-      const assessmentId = result.insertId;
-      const assessmentCode = `IA-${String(assessmentId).padStart(3, "0")}`;
-
-      const updateSql = `
-        UPDATE infosec_assessments
-        SET assessment_code = ?
-        WHERE assessment_id = ?
-      `;
-
-      db.query(updateSql, [assessmentCode, assessmentId], (updateErr) => {
-        if (updateErr) {
-          console.error("Update assessment code error:", updateErr);
-          return res.status(500).json({ message: "Failed to create assessment ID." });
-        }
-
-        res.json({
-          assessment_id: assessmentId,
-          assessment_code: assessmentCode,
-          vendor_id,
-          submitted_by_user_id: req.session.user.user_id,
-          purpose: purpose || "Information Security",
-          status: "Draft"
-        });
-      });
-    });
+    createNewAssessment();
   });
 });
 

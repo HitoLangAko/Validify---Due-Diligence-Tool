@@ -2113,3 +2113,15 @@ body[data-role="employee"] .top-actions .employee-only {
 #infosecAssessmentPage .content-card {
   margin-bottom: 0;
 }
+
+/* INFOSEC CREATE ASSESSMENT BUTTON */
+
+.assessment-create-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+
+.assessment-create-row .submit-draft-btn {
+  width: 220px;
+}
