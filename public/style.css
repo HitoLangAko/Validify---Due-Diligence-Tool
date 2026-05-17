@@ -2152,3 +2152,19 @@ body[data-role="employee"] .top-actions .employee-only {
 .existing-assessment-card {
   margin-top: 6px;
 }
+
+/* CREATE ASSESSMENT BUTTON POSITION */
+
+.assessment-create-row {
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  margin-top: 80px;
+}
+
+.assessment-create-row .submit-draft-btn {
+  width: 220px;
+  height: 54px;
+  margin-left: auto;
+}
