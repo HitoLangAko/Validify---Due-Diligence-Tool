@@ -234,6 +234,9 @@ const mailer = nodemailer.createTransport({
   port: Number(process.env.EMAIL_PORT || 587),
   secure: String(process.env.EMAIL_SECURE || "false") === "true",
   family: 4,
+  connectionTimeout: 30000,
+  greetingTimeout: 30000,
+  socketTimeout: 30000,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
