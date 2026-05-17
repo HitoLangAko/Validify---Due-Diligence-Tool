@@ -1885,14 +1885,16 @@ body[data-role="employee"] .top-actions .employee-only {
 }
 
 .vendor-form-actions {
-  display: grid;
-  grid-template-columns: 180px 1fr;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
   gap: 18px;
   margin-top: 18px;
 }
 
 .clear-form-btn,
 .submit-draft-btn {
+  width: 180px;
   height: 52px;
   border-radius: 8px;
   font-weight: 900;
@@ -1928,6 +1930,12 @@ body[data-role="employee"] .top-actions .employee-only {
 
 @media (max-width: 700px) {
   .vendor-form-actions {
-    grid-template-columns: 1fr;
+    justify-content: stretch;
+    flex-direction: column;
+  }
+
+  .clear-form-btn,
+  .submit-draft-btn {
+    width: 100%;
   }
 }
