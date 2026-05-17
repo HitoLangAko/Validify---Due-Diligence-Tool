@@ -113,7 +113,6 @@ const signatureFileName = document.getElementById("signatureFileName");
 const cancelSignoffBtn = document.getElementById("cancelSignoffBtn");
 
 const createInfoSecAssessmentBtn = document.getElementById("createInfoSecAssessmentBtn");
-const infosecAssessmentDate = document.getElementById("infosecAssessmentDate");
 
 function getRoleLabel(role) {
   return roleLabels[role] || role || "User";
