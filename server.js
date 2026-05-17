@@ -5,8 +5,6 @@ const bcrypt = require("bcryptjs");
 const session = require("express-session");
 const path = require("path");
 const fs = require("fs");
-const crypto = require("crypto");
-const nodemailer = require("nodemailer");
 require("dotenv").config();
 
 const app = express();
