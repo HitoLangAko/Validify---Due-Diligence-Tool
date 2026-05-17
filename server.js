@@ -6,8 +6,10 @@ const session = require("express-session");
 const ExcelJS = require("exceljs");
 const path = require("path");
 const fs = require("fs");
+require("dotenv").config();
 
 const app = express();
+
 
 app.use(cors());
 app.use(express.json());
@@ -24,20 +26,27 @@ app.use(
   })
 );
 
-const db = mysql.createConnection({
-  host: "localhost",
-  user: "root",
-  password: "mypassword123",
-  database: "vendor_due_diligence_db"
+const db = mysql.createPool({
+  host: process.env.DB_HOST,
+  port: Number(process.env.DB_PORT),
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+  ssl: {
+    ca: fs.readFileSync(process.env.DB_SSL_CA_PATH)
+  },
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0
 });
 
-db.connect((err) => {
+db.query("SELECT 1", (err) => {
   if (err) {
     console.error("Database connection failed:", err);
     return;
   }
 
-  console.log("Connected to MySQL database.");
+  console.log("Connected to Aiven MySQL database.");
 });
 
 function requireLogin(req, res, next) {
@@ -1529,6 +1538,8 @@ app.post("/answers/company-review", requireRole("company_employee"), (req, res) 
    START SERVER
 ========================= */
 
-app.listen(3000, () => {
-  console.log("Server running at http://localhost:3000");
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
