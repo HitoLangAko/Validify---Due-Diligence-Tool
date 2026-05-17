@@ -113,6 +113,7 @@ const signatureFileName = document.getElementById("signatureFileName");
 const cancelSignoffBtn = document.getElementById("cancelSignoffBtn");
 
 const createInfoSecAssessmentBtn = document.getElementById("createInfoSecAssessmentBtn");
+const vendorAssessmentNavBtn = document.getElementById("vendorAssessmentNavBtn");
 
 function getRoleLabel(role) {
   return roleLabels[role] || role || "User";
@@ -353,7 +354,12 @@ function showPage(page) {
   setActiveNav(page);
   showOnlyPage(page);
 
-  const label = pageLabel(page);
+  const customLabels = {
+    "vendor-assessment": "Vendor Assessment",
+    "infosec-assessment": "Information Security Assessment"
+  };
+
+  const label = customLabels[page] || pageLabel(page);
 
   if (pageTitle) pageTitle.textContent = label;
   if (breadcrumb) breadcrumb.textContent = `${getRoleLabel(currentRole)} / ${label}`;
@@ -663,14 +669,16 @@ async function startInfoSecAssessment(vendorId) {
     activeInfoSecAssessment = assessment;
     activeInfoSecAnswers = {};
 
-    if (infosecAssessmentPage) infosecAssessmentPage.classList.remove("hidden");
+    if (vendorAssessmentNavBtn) {
+      vendorAssessmentNavBtn.classList.remove("hidden");
+    }
     if (infosecAssessmentCode) infosecAssessmentCode.value = assessment.assessment_code || "";
     if (infosecAssessmentDate) infosecAssessmentDate.value = formatDateForInput(assessment.created_at || new Date());
     if (infosecVendorSelect) infosecVendorSelect.value = String(vendorId);
     if (infosecPurpose) infosecPurpose.value = assessment.purpose || "Info Sec";
 
     await loadInfoSecAssessment(assessment.assessment_id);
-    showPage("infosec-assessment");
+    showPage("vendor-assessment");
   } catch (error) {
     alert(error.message);
   }
