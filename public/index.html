@@ -12,136 +12,6 @@
     rel="stylesheet"
     href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
   />
-
-  <style>
-    .role-only {
-      display: none;
-    }
-
-    .role-visible {
-      display: flex;
-    }
-
-    .sub-link.role-visible {
-      display: block;
-    }
-
-    .page-section-title {
-      margin: 0 0 18px;
-      font-size: 26px;
-      font-weight: 900;
-      color: #111827;
-    }
-
-    .status-pill {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 999px;
-      padding: 6px 12px;
-      font-size: 12px;
-      font-weight: 800;
-      border: 1px solid transparent;
-    }
-
-    .status-pending {
-      background: #fed7aa;
-      color: #7c2d12;
-      border-color: #fb923c;
-    }
-
-    .status-in-review {
-      background: #dbeafe;
-      color: #1e40af;
-      border-color: #60a5fa;
-    }
-
-    .status-reviewed,
-    .status-approved,
-    .status-completed {
-      background: #bbf7d0;
-      color: #065f46;
-      border-color: #34d399;
-    }
-
-    .status-rejected {
-      background: #fecaca;
-      color: #991b1b;
-      border-color: #f87171;
-    }
-
-    .inline-review-box {
-      width: min(480px, 100%);
-      min-height: 70px;
-      resize: vertical;
-    }
-
-    .inline-select {
-      min-width: 130px;
-      height: 40px;
-      padding: 7px 10px;
-    }
-
-    .small-action-btn {
-      border: none;
-      background: #2f66e8;
-      color: #ffffff;
-      border-radius: 8px;
-      padding: 9px 14px;
-      font-weight: 800;
-    }
-
-    .green-action-btn {
-      border: none;
-      background: #10b981;
-      color: #ffffff;
-      border-radius: 8px;
-      padding: 10px 18px;
-      font-weight: 900;
-    }
-
-    .red-action-btn {
-      border: none;
-      background: #ef4444;
-      color: #ffffff;
-      border-radius: 8px;
-      padding: 10px 18px;
-      font-weight: 900;
-    }
-
-    .button-row {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-
-    .toast {
-      position: fixed;
-      right: 28px;
-      bottom: 28px;
-      background: #111827;
-      color: white;
-      border-radius: 12px;
-      padding: 14px 18px;
-      box-shadow: 0 12px 28px rgba(15, 23, 42, 0.25);
-      z-index: 9999;
-      display: none;
-      font-weight: 800;
-    }
-
-    .toast.show {
-      display: block;
-    }
-
-    .table-wrap table td {
-      vertical-align: top;
-    }
-
-    .wide-action-cell {
-      min-width: 260px;
-    }
-  </style>
 </head>
 
 <body>
@@ -157,22 +27,37 @@
         </div>
 
         <nav class="nav-menu">
-          <button class="nav-link active" data-page="dashboard" data-roles="it,infosec,management,dpo,hr,compliance,admin" type="button">
+          <button class="nav-link" data-page="dashboard" data-roles="it,infosec,management,dpo,hr,compliance,admin" type="button">
             <i class="fa-solid fa-house"></i>
             <span>Dashboard</span>
           </button>
 
-          <button class="nav-link active" data-page="add-vendor" data-roles="employee" type="button">
+          <button class="nav-link" data-page="add-vendor" data-roles="employee,infosec" type="button">
             <i class="fa-solid fa-plus"></i>
             <span>Insert Vendor</span>
           </button>
 
-          <button class="nav-link" data-page="my-submissions" data-roles="employee" type="button">
+          <button class="nav-link" data-page="my-submissions" data-roles="employee,infosec" type="button">
             <i class="fa-solid fa-folder-open"></i>
             <span>My Submissions</span>
           </button>
 
-          <button class="nav-link" data-page="department-assessments" data-roles="it,infosec,management,dpo,hr,compliance" type="button">
+          <button class="nav-link" data-page="vendor-queue" data-roles="infosec" type="button">
+            <i class="fa-solid fa-list-check"></i>
+            <span>Vendor Queue</span>
+          </button>
+
+          <button class="nav-link" data-page="pending-approval" data-roles="infosec" type="button">
+            <i class="fa-solid fa-clock"></i>
+            <span>Pending Approval</span>
+          </button>
+
+          <button class="nav-link" data-page="signoff" data-roles="infosec" type="button">
+            <i class="fa-solid fa-file-signature"></i>
+            <span>Sign off</span>
+          </button>
+
+          <button class="nav-link" data-page="department-assessments" data-roles="it,management,dpo,hr,compliance" type="button">
             <i class="fa-solid fa-clipboard-check"></i>
             <span>Vendor Assessments</span>
           </button>
@@ -234,7 +119,7 @@
         </div>
 
         <div class="top-actions">
-          <button class="icon-button" type="button">
+          <button class="icon-button" type="button" id="darkModeBtn">
             <i class="fa-solid fa-moon"></i>
           </button>
 
@@ -246,15 +131,13 @@
       </header>
 
       <section class="page active" id="dashboardPage">
-        <div class="stats-grid" id="departmentStatsGrid">
+        <div class="stats-grid employee-dashboard-cards" id="departmentStatsGrid">
           <div class="stat-card">
             <div>
               <p>Total Assigned</p>
               <h3 id="deptTotalAssigned">0</h3>
             </div>
-            <span class="stat-icon blue">
-              <i class="fa-solid fa-folder-open"></i>
-            </span>
+            <span class="stat-icon blue"><i class="fa-solid fa-folder-open"></i></span>
           </div>
 
           <div class="stat-card">
@@ -262,19 +145,15 @@
               <p>Pending</p>
               <h3 id="deptPending">0</h3>
             </div>
-            <span class="stat-icon orange">
-              <i class="fa-solid fa-clock"></i>
-            </span>
+            <span class="stat-icon orange"><i class="fa-solid fa-clock"></i></span>
           </div>
 
           <div class="stat-card">
             <div>
-              <p>Reviewed / Approved</p>
+              <p>Submitted</p>
               <h3 id="deptReviewed">0</h3>
             </div>
-            <span class="stat-icon green">
-              <i class="fa-solid fa-check"></i>
-            </span>
+            <span class="stat-icon green"><i class="fa-solid fa-check"></i></span>
           </div>
 
           <div class="stat-card">
@@ -282,21 +161,17 @@
               <p>Rejected</p>
               <h3 id="deptRejected">0</h3>
             </div>
-            <span class="stat-icon red">
-              <i class="fa-solid fa-xmark"></i>
-            </span>
+            <span class="stat-icon red"><i class="fa-solid fa-xmark"></i></span>
           </div>
         </div>
 
-        <div class="stats-grid hidden" id="adminStatsGrid">
+        <div class="stats-grid employee-dashboard-cards hidden" id="adminStatsGrid">
           <div class="stat-card">
             <div>
               <p>Total Vendors</p>
               <h3 id="adminTotalVendors">0</h3>
             </div>
-            <span class="stat-icon blue">
-              <i class="fa-solid fa-building"></i>
-            </span>
+            <span class="stat-icon blue"><i class="fa-solid fa-building"></i></span>
           </div>
 
           <div class="stat-card">
@@ -304,9 +179,7 @@
               <p>Pending Reviews</p>
               <h3 id="adminPendingReviews">0</h3>
             </div>
-            <span class="stat-icon orange">
-              <i class="fa-solid fa-clock"></i>
-            </span>
+            <span class="stat-icon orange"><i class="fa-solid fa-clock"></i></span>
           </div>
 
           <div class="stat-card">
@@ -314,9 +187,7 @@
               <p>Completed Vendors</p>
               <h3 id="adminCompletedVendors">0</h3>
             </div>
-            <span class="stat-icon green">
-              <i class="fa-solid fa-check"></i>
-            </span>
+            <span class="stat-icon green"><i class="fa-solid fa-check"></i></span>
           </div>
 
           <div class="stat-card">
@@ -324,9 +195,7 @@
               <p>Rejected Vendors</p>
               <h3 id="adminRejectedVendors">0</h3>
             </div>
-            <span class="stat-icon red">
-              <i class="fa-solid fa-xmark"></i>
-            </span>
+            <span class="stat-icon red"><i class="fa-solid fa-xmark"></i></span>
           </div>
         </div>
 
@@ -337,9 +206,7 @@
             <table>
               <thead id="dashboardTableHead"></thead>
               <tbody id="dashboardTableBody">
-                <tr>
-                  <td class="empty-cell">Loading...</td>
-                </tr>
+                <tr><td class="empty-cell">Loading...</td></tr>
               </tbody>
             </table>
           </div>
@@ -347,25 +214,23 @@
       </section>
 
       <section class="page" id="addVendorPage">
-          <div class="content-card form-card-small">
-            <h3>Add Vendor</h3>
+        <div class="content-card form-card-small">
+          <h3>Insert Vendor</h3>
 
-            <div class="vendor-success-card hidden" id="vendorSuccessPanel">
-              <p class="vendor-success-title">
-                <i class="fa-solid fa-check"></i>
-                Success. Vendor <span id="successVendorName">Vendor</span> saved.
-              </p>
+          <div class="vendor-success-card hidden" id="vendorSuccessPanel">
+            <p class="vendor-success-title">
+              <i class="fa-solid fa-check"></i>
+              Success. Vendor <span id="successVendorName">Vendor</span> saved.
+            </p>
 
-              <p class="vendor-success-message">
-                Draft saved and forwarded to IT, InfoSec, Management, DPO, HR, and Compliance for assessment.
-              </p>
+            <p class="vendor-success-message">
+              Draft saved and forwarded to IT, InfoSec, Management, DPO, HR, and Compliance for assessment.
+            </p>
 
-              <button type="button" class="small-action-btn" id="submitAnotherVendorBtn">
-                Submit Another
-              </button>
-            </div>
+            <button type="button" class="small-action-btn" id="submitAnotherVendorBtn">Submit Another</button>
+          </div>
 
-            <form id="addVendorForm">
+          <form id="addVendorForm">
             <div class="form-grid two-col">
               <div class="field-group">
                 <label>Company Name</label>
@@ -403,14 +268,8 @@
             </div>
 
             <div class="vendor-form-actions">
-              <button type="button" class="clear-form-btn" id="clearVendorFormBtn">
-                Clear Form
-              </button>
-
-              <button type="submit" class="submit-draft-btn">
-                Submit Draft
-                <i class="fa-solid fa-arrow-right"></i>
-              </button>
+              <button type="button" class="clear-form-btn" id="clearVendorFormBtn">Clear Form</button>
+              <button type="submit" class="submit-draft-btn">Submit Draft <i class="fa-solid fa-arrow-right"></i></button>
             </div>
           </form>
         </div>
@@ -422,7 +281,7 @@
 
           <div class="table-wrap">
             <table>
-              <thead>
+              <thead id="mySubmissionsHead">
                 <tr>
                   <th>Company Name</th>
                   <th>Services</th>
@@ -431,21 +290,149 @@
                   <th>Date Submitted</th>
                 </tr>
               </thead>
-
               <tbody id="mySubmissionsBody">
-                <tr>
-                  <td colspan="5" class="empty-cell">No submissions yet.</td>
-                </tr>
+                <tr><td colspan="5" class="empty-cell">No submissions yet.</td></tr>
               </tbody>
             </table>
           </div>
         </div>
       </section>
 
+      <section class="page" id="vendorQueuePage">
+        <div class="content-card">
+          <h3>Vendor Queue</h3>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Vendor</th>
+                  <th>Type</th>
+                  <th>Submitted By</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+
+              <tbody id="vendorQueueBody">
+                <tr><td colspan="6" class="empty-cell">No vendors waiting for assessment.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="page hidden" id="infosecAssessmentPage">
+        <div class="content-card form-card-small">
+          <h3>Information Security Assessment</h3>
+
+          <div class="assessment-meta-grid">
+            <div class="field-group">
+              <label>Assessment ID</label>
+              <input type="text" id="infosecAssessmentCode" readonly />
+            </div>
+
+            <div class="field-group">
+              <label>Select Vendor</label>
+              <select id="infosecVendorSelect"></select>
+            </div>
+
+            <div class="field-group">
+              <label>Purpose</label>
+              <input type="text" id="infosecPurpose" value="Information Security" />
+            </div>
+
+            <div class="field-group">
+              <label>Select Existing Assessment</label>
+              <select id="existingInfoSecAssessment"></select>
+            </div>
+          </div>
+
+          <form id="infosecForm">
+            <div id="infosecQuestionsWrap"></div>
+
+            <div class="vendor-form-actions">
+              <button type="button" class="clear-form-btn" id="cancelInfoSecAssessmentBtn">Cancel</button>
+              <button type="submit" class="submit-draft-btn">Submit to Admin <i class="fa-solid fa-arrow-right"></i></button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section class="page" id="pendingApprovalPage">
+        <div class="content-card">
+          <h3>Pending Approval</h3>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Assessment ID</th>
+                  <th>Vendor</th>
+                  <th>Type</th>
+                  <th>Status</th>
+                  <th>Date Submitted</th>
+                </tr>
+              </thead>
+
+              <tbody id="pendingApprovalBody">
+                <tr><td colspan="5" class="empty-cell">No pending approvals yet.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="page" id="signoffPage">
+        <div class="content-card signoff-card">
+          <div class="signoff-heading">
+            <h3>Sign-off Authorization</h3>
+            <p>Please provide your digital signature details to finalize approval.</p>
+          </div>
+
+          <form id="signoffForm">
+            <div class="field-group">
+              <label>Department / Role</label>
+              <select id="signoffRole" required>
+                <option value="">Select Role</option>
+                <option value="InfoSec">InfoSec</option>
+              </select>
+            </div>
+
+            <div class="field-group">
+              <label>Signer's Full Name</label>
+              <input type="text" id="signoffName" placeholder="Enter Full Name" required />
+            </div>
+
+            <div class="field-group">
+              <label>Approval Decision</label>
+              <div class="radio-row">
+                <label><input type="radio" name="approvalDecision" value="Signed" checked /> Approve and Sign</label>
+                <label><input type="radio" name="approvalDecision" value="Pending" /> Keep Pending</label>
+              </div>
+            </div>
+
+            <div class="field-group">
+              <label>Digital Signature</label>
+              <label for="signatureFile" class="upload-signature-btn">
+                <i class="fa-solid fa-upload"></i>
+                <span id="signatureFileName">Upload Signature</span>
+              </label>
+              <input type="file" id="signatureFile" class="hidden" accept="image/*,.pdf" />
+            </div>
+
+            <div class="button-row signoff-actions">
+              <button type="button" class="cancel-btn" id="cancelSignoffBtn">Cancel</button>
+              <button type="submit" class="confirm-btn">Confirm & Sign-Off</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
       <section class="page" id="departmentAssessmentsPage">
         <div class="content-card">
           <h3>Vendor Assessments</h3>
-
           <div class="table-wrap">
             <table>
               <thead>
@@ -459,11 +446,8 @@
                   <th>Action</th>
                 </tr>
               </thead>
-
               <tbody id="departmentAssessmentsBody">
-                <tr>
-                  <td colspan="7" class="empty-cell">No vendor assessments yet.</td>
-                </tr>
+                <tr><td colspan="7" class="empty-cell">No vendor assessments yet.</td></tr>
               </tbody>
             </table>
           </div>
@@ -473,7 +457,6 @@
       <section class="page" id="allVendorsPage">
         <div class="content-card">
           <h3>All Vendors</h3>
-
           <div class="table-wrap">
             <table>
               <thead>
@@ -486,11 +469,8 @@
                   <th>Date Submitted</th>
                 </tr>
               </thead>
-
               <tbody id="allVendorsBody">
-                <tr>
-                  <td colspan="6" class="empty-cell">No vendors yet.</td>
-                </tr>
+                <tr><td colspan="6" class="empty-cell">No vendors yet.</td></tr>
               </tbody>
             </table>
           </div>
@@ -500,7 +480,6 @@
       <section class="page" id="departmentReviewsPage">
         <div class="content-card">
           <h3>Department Reviews</h3>
-
           <div class="table-wrap">
             <table>
               <thead>
@@ -514,11 +493,8 @@
                   <th>Compliance</th>
                 </tr>
               </thead>
-
               <tbody id="departmentReviewsBody">
-                <tr>
-                  <td colspan="7" class="empty-cell">No department reviews yet.</td>
-                </tr>
+                <tr><td colspan="7" class="empty-cell">No department reviews yet.</td></tr>
               </tbody>
             </table>
           </div>
