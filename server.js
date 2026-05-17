@@ -230,9 +230,9 @@ initDatabase().catch((error) => {
 const APP_BASE_URL = process.env.APP_BASE_URL || "http://localhost:3000";
 
 const mailer = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST,
-  port: Number(process.env.EMAIL_PORT || 465),
-  secure: String(process.env.EMAIL_SECURE || "true") === "true",
+  host: process.env.EMAIL_HOST || "smtp.gmail.com",
+  port: Number(process.env.EMAIL_PORT || 587),
+  secure: String(process.env.EMAIL_SECURE || "false") === "true",
   family: 4,
   auth: {
     user: process.env.EMAIL_USER,
