@@ -1864,3 +1864,22 @@ body[data-role="employee"] .top-actions .employee-only {
   color: #047857;
   font-weight: 700;
 }
+
+/* INSERT VENDOR FULL WIDTH CARD */
+
+#addVendorPage .form-card-small {
+  width: 100%;
+  max-width: none;
+}
+
+#addVendorPage .content-card {
+  width: 100%;
+}
+
+#addVendorPage textarea {
+  width: 100%;
+}
+
+#addVendorPage .full-button {
+  width: 100%;
+}
