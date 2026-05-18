@@ -66,6 +66,9 @@ const clearVendorFormBtn = document.getElementById("clearVendorFormBtn");
 const vendorSuccessPanel = document.getElementById("vendorSuccessPanel");
 const successVendorName = document.getElementById("successVendorName");
 const submitAnotherVendorBtn = document.getElementById("submitAnotherVendorBtn");
+const assessmentSuccessPanel = document.getElementById("assessmentSuccessPanel");
+const assessmentSuccessTitle = document.getElementById("assessmentSuccessTitle");
+const assessmentSuccessMessage = document.getElementById("assessmentSuccessMessage");
 const departmentStatsGrid = document.getElementById("departmentStatsGrid");
 const adminStatsGrid = document.getElementById("adminStatsGrid");
 const deptTotalAssigned = document.getElementById("deptTotalAssigned");
@@ -143,6 +146,19 @@ function showToast(message) {
   toast.textContent = message;
   toast.classList.add("show");
   setTimeout(() => toast.classList.remove("show"), 2400);
+}
+
+function showAssessmentSuccess(title, message) {
+  if (assessmentSuccessTitle) assessmentSuccessTitle.textContent = title;
+  if (assessmentSuccessMessage) assessmentSuccessMessage.textContent = message;
+  if (assessmentSuccessPanel) {
+    assessmentSuccessPanel.classList.remove("hidden");
+    assessmentSuccessPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+}
+
+function hideAssessmentSuccess() {
+  if (assessmentSuccessPanel) assessmentSuccessPanel.classList.add("hidden");
 }
 
 async function api(url, options = {}) {
@@ -354,20 +370,71 @@ function setupAddVendorForm() {
     };
 
     try {
-      await api("/vendors", { method: "POST", body: JSON.stringify(payload) });
+      const savedVendor = await api("/vendors", {
+        method: "POST",
+        body: JSON.stringify(payload)
+      });
+
       addVendorForm.reset();
-      if (successVendorName) successVendorName.textContent = payload.company_name;
-      if (vendorSuccessPanel) {
-        vendorSuccessPanel.classList.remove("hidden");
-        vendorSuccessPanel.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (vendorSuccessPanel) vendorSuccessPanel.classList.add("hidden");
+
+      if (currentRole === "employee") {
+        await loadEmployeeData();
+
+        activeMainAssessment = null;
+
+        if (infosecAssessmentCode) {
+          infosecAssessmentCode.value = "";
+          infosecAssessmentCode.placeholder = "Auto-generated ID";
+        }
+
+        if (infosecAssessmentDate) {
+          infosecAssessmentDate.value = getTodayDateInputValue();
+        }
+
+        if (infosecVendorSelect && savedVendor.vendor_id) {
+          infosecVendorSelect.value = String(savedVendor.vendor_id);
+        }
+
+        if (existingInfoSecAssessment) {
+          existingInfoSecAssessment.value = "";
+        }
+
+        if (infosecPurpose) {
+          infosecPurpose.value = "";
+        }
+
+        updateCurrentlyAssessingCard({
+          company_name: payload.company_name,
+          product_services_offered: payload.product_services_offered
+        });
+
+        if (infosecQuestionsWrap) {
+          infosecQuestionsWrap.innerHTML = `<p class="empty-cell">Vendor saved. Select an assessment date and purpose, then click Create Assessment to assign it to departments.</p>`;
+        }
+
+        showPage("vendor-assessment");
+        showAssessmentSuccess(
+          `Success. Vendor ${payload.company_name} saved.`,
+          "Vendor saved. Create a Vendor Assessment to assign it to IT, InfoSec, Management, DPO, HR, and Compliance."
+        );
+        return;
       }
-      if (currentRole === "employee") await loadEmployeeData();
-      if (isDepartmentRole()) await loadDepartmentWorkflowData();
+
+      if (isDepartmentRole()) {
+        await loadDepartmentWorkflowData();
+        showPage("vendor-assessment");
+        showAssessmentSuccess(
+          `Success. Vendor ${payload.company_name} saved.`,
+          "Vendor saved. A main Vendor Assessment must be created before department forms can be answered."
+        );
+      }
     } catch (error) {
       alert(error.message);
     }
   });
 }
+
 
 async function loadDepartmentWorkflowData() {
   const [queue, assessments, pending, questions, vendors] = await Promise.all([
@@ -639,10 +706,16 @@ async function createOrStartAssessment() {
       });
       activeMainAssessment = assessment;
       if (infosecAssessmentCode) infosecAssessmentCode.value = assessment.assessment_code || "";
+      if (infosecVendorSelect) infosecVendorSelect.value = String(assessment.vendor_id);
       if (existingInfoSecAssessment) existingInfoSecAssessment.value = String(assessment.assessment_id);
       updateCurrentlyAssessingCard(assessment);
       await loadEmployeeData();
+      if (infosecVendorSelect) infosecVendorSelect.value = String(assessment.vendor_id);
       if (existingInfoSecAssessment) existingInfoSecAssessment.value = String(assessment.assessment_id);
+      showAssessmentSuccess(
+        `Vendor Assessment ${assessment.assessment_code || "created"} created.`,
+        "Assessment created and assigned to IT, InfoSec, Management, DPO, HR, and Compliance."
+      );
       showToast("Vendor assessment created and assigned to departments.");
       return;
     }
