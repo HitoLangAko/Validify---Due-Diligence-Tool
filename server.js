@@ -1462,14 +1462,7 @@ function createSupplierDDFSheet(workbook, assessment, answers) {
   };
 
   sheet.properties.defaultRowHeight = 22;
-  sheet.views = [
-  {
-    state: "frozen",
-    xSplit: 1,
-    ySplit: 0,
-    topLeftCell: "B1"
-  }
-];
+  sheet.views = [];
 
   sheet.columns = [
     { width: 68 },
@@ -1620,14 +1613,7 @@ function createInformationSecuritySheet(workbook, assessment, answers) {
   };
 
   sheet.properties.defaultRowHeight = 22;
-  sheet.views = [
-  {
-    state: "frozen",
-    xSplit: 1,
-    ySplit: 0,
-    topLeftCell: "B1"
-  }
-];
+  sheet.views = [];
 
   sheet.columns = [
     { width: 72 },
