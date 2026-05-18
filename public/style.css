@@ -3162,3 +3162,33 @@ body[data-role="compliance"] #vendorAssessmentPage .vendor-assessment-card {
     grid-template-columns: 1fr;
   }
 }
+
+/* Admin Information Security Review */
+.admin-is-summary-card {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
+  gap: 16px;
+  background: #f8fafc;
+  border: 1px solid #dfe5ee;
+  border-radius: 16px;
+  padding: 18px 20px;
+  margin: 18px 0 22px;
+}
+
+.admin-is-summary-card div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.admin-is-summary-card strong {
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+@media (max-width: 900px) {
+  .admin-is-summary-card {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1412,6 +1412,154 @@ function switchAssessmentReviewTab(tabName, clickedButton) {
   if (targetContent) targetContent.classList.remove("hidden");
 }
 
+const adminInfoSecQuestions = [
+  "Is there a dedicated security officer or team responsible for overseeing the implementation of the information security programs, awareness, and compliance in your organization?",
+  "Does your security officer report to senior management or part of the organization's steering committee?",
+  "Do you have documented security policies?",
+  "Are the security policies board approved?",
+  "Are security policies regularly reviewed to align with ISO 27001, PCI DSS, NIST, or similar standards?",
+  "Does your organization undergo regular internal and external security audits?",
+  "Do you comply with relevant local and international laws and security regulations?",
+  "Are security requirements incorporated in contracts, including data protection clauses?",
+  "Do you have an established Information Security Awareness Program?",
+  "Are roles and access rights following the least-privilege principle?",
+  "Are user privileges regularly reviewed and updated?",
+  "Are access logs to sensitive data maintained for access review?",
+  "Does your organization encrypt communications and data stored in IT facilities, including data at rest and data in transit?",
+  "Do you perform application security testing or assessment before production deployment?",
+  "Do you have a security incident response team and procedures in place?",
+  "Do you have an Incident Response Plan for ransomware, phishing, and data breach scenarios?"
+];
+
+function getInfoSecAnswerRows(assessment) {
+  const departmentAnswers = assessment?.department_answers?.length
+    ? assessment.department_answers
+    : (assessment?.department_assessments || []).flatMap((dept) => {
+        return (dept.answers || []).map((answer) => ({
+          ...answer,
+          department_role: dept.department_role
+        }));
+      });
+
+  const infosecAnswers = departmentAnswers.filter((answer) => {
+    return answer.department_role === "infosec" || answer.section_name === "Information Security";
+  });
+
+  return adminInfoSecQuestions.map((questionText, index) => {
+    const saved = infosecAnswers.find((answer) => Number(answer.question_index) === index);
+
+    return {
+      section_name: "Information Security",
+      question_index: index,
+      question_text: saved?.question_text || questionText,
+      response: saved?.response || "",
+      explanation: saved?.explanation || "",
+      artifact_path: saved?.artifact_path || "",
+      artifact_name: saved?.artifact_name || ""
+    };
+  });
+}
+
+function renderInfoSecArtifactLink(answer) {
+  if (!answer?.artifact_path) return "-";
+
+  return `
+    <a href="${escapeHTML(answer.artifact_path)}" target="_blank" class="review-file-link">
+      ${escapeHTML(answer.artifact_name || "Open file")}
+    </a>
+  `;
+}
+
+function renderAdminInformationSecurityForm(assessment) {
+  const container = document.getElementById("infosecReviewDetailsWrap");
+  if (!container) return;
+
+  if (!assessment) {
+    container.innerHTML = `<p class="empty-cell">Select an assessment to view Information Security responses.</p>`;
+    return;
+  }
+
+  const infosecDept = (assessment.department_assessments || []).find(
+    (dept) => dept.department_role === "infosec"
+  );
+
+  const answers = getInfoSecAnswerRows(assessment);
+
+  let html = `
+    <div class="admin-is-summary-card">
+      <div>
+        <span class="review-label">Department</span>
+        <strong>Information Security</strong>
+      </div>
+
+      <div>
+        <span class="review-label">Status</span>
+        <span class="status-pill ${statusClass(infosecDept?.department_status)}">
+          ${escapeHTML(infosecDept?.department_status || "Pending")}
+        </span>
+      </div>
+
+      <div>
+        <span class="review-label">Submitted By</span>
+        <strong>${escapeHTML(infosecDept?.submitted_by || "-")}</strong>
+      </div>
+
+      <div>
+        <span class="review-label">Date Submitted</span>
+        <strong>${escapeHTML(formatDate(infosecDept?.submitted_at))}</strong>
+      </div>
+    </div>
+
+    <div class="admin-ddf-section">
+      <div class="admin-ddf-section-title">Information Security</div>
+
+      <div class="table-wrap">
+        <table class="admin-ddf-table">
+          <thead>
+            <tr>
+              <th>Question</th>
+              <th>Response</th>
+              <th>Explanation</th>
+              <th>Supporting Document</th>
+            </tr>
+          </thead>
+          <tbody>
+  `;
+
+  html += answers.map((answer, index) => `
+    <tr>
+      <td class="admin-ddf-question">
+        ${index + 1}. ${escapeHTML(answer.question_text)}
+      </td>
+
+      <td>
+        <div class="admin-ddf-response">
+          ${escapeHTML(answer.response || "No response submitted yet.")}
+        </div>
+      </td>
+
+      <td>
+        <div class="admin-ddf-explanation">
+          ${escapeHTML(answer.explanation || "-")}
+        </div>
+      </td>
+
+      <td>
+        ${renderInfoSecArtifactLink(answer)}
+      </td>
+    </tr>
+  `).join("");
+
+  html += `
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  container.innerHTML = html;
+}
+
 function populateAssessmentReviewTabs() {
   if (!selectedReviewAssessment) {
     renderAdminDueDiligenceForm(null);
@@ -1425,13 +1573,9 @@ function populateAssessmentReviewTabs() {
     return;
   }
 
-  // Due Diligence Form tab
   renderAdminDueDiligenceForm(selectedReviewAssessment);
-
-  // Information Security tab
   renderAdminInformationSecurityForm(selectedReviewAssessment);
 
-  // Sign-Off Sheet tab
   const signoffs = selectedReviewAssessment.department_signoffs || [];
   const signoffGrid = document.getElementById("signoffReviewGrid");
 
