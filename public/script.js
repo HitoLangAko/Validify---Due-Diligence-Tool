@@ -321,8 +321,8 @@ function populateEmployeeVendorAssessmentFields() {
     });
   }
 
-  if (infosecQuestionsWrap) {
-    infosecQuestionsWrap.innerHTML = `<p class="empty-cell">Employee creates the main Vendor Assessment request. Department users will answer their own forms.</p>`;
+  if (infosecQuestionsWrap && !activeMainAssessment) {
+    infosecQuestionsWrap.innerHTML = `<p class="empty-cell">Create or select a Vendor Assessment to answer the Vendor Information questions.</p>`;
   }
 }
 
@@ -651,6 +651,29 @@ function renderDepartmentFormQuestions() {
       html += `<div class="is-group-title"><h3>${escapeHTML(currentSection)}</h3><p>${escapeHTML(getRoleLabel())} Questionnaire</p></div>`;
     }
 
+    if (currentRole === "employee") {
+      html += `
+        <div class="is-question-card" data-question-index="${index}">
+          <h4>${index + 1}. ${escapeHTML(question.question_text)}</h4>
+          <div class="is-answer-grid">
+            <div class="field-group" style="grid-column: 1 / -1;">
+              <label>Vendor Response</label>
+              <textarea class="is-explanation" data-index="${index}" placeholder="Enter vendor information answer" required>${escapeHTML(explanation)}</textarea>
+              <select class="is-response hidden" data-index="${index}">
+                <option value="TEXT_ANSWER" selected>TEXT_ANSWER</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label>Supporting Document</label>
+              <input type="file" class="is-artifact" data-index="${index}" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" />
+              <p class="artifact-note">Optional. ${artifactName ? `Current: ${escapeHTML(artifactName)}` : ""}</p>
+            </div>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
     html += `
       <div class="is-question-card" data-question-index="${index}">
         <h4>${index + 1}. ${escapeHTML(question.question_text)}</h4>
@@ -713,6 +736,7 @@ async function createOrStartAssessment() {
       await loadEmployeeData();
       if (infosecVendorSelect) infosecVendorSelect.value = String(assessment.vendor_id);
       if (existingInfoSecAssessment) existingInfoSecAssessment.value = String(assessment.assessment_id);
+      await loadEmployeeAssessment(assessment.assessment_id);
       showAssessmentSuccess(
         `Vendor Assessment ${assessment.assessment_code || "created"} created.`,
         "Assessment created and assigned to IT, InfoSec, Management, DPO, HR, and Compliance."
@@ -748,17 +772,24 @@ async function submitDepartmentForm(event) {
     const artifactInput = document.querySelector(`.is-artifact[data-index="${index}"]`);
     const existing = activeDepartmentAnswers[index] || {};
 
-    if (!response) {
-      alert(`Please answer question ${index + 1}.`);
-      return;
-    }
-    if ((response === "No" || response === "N/A") && !explanation) {
-      alert(`Question ${index + 1}: No or N/A requires an explanation.`);
-      return;
-    }
-    if (response === "Yes" && !artifactInput?.files?.length && !existing.artifact_path) {
-      alert(`Question ${index + 1}: Yes requires an artifact upload.`);
-      return;
+    if (currentRole === "employee") {
+      if (!explanation) {
+        alert(`Please answer Vendor Information question ${index + 1}.`);
+        return;
+      }
+    } else {
+      if (!response) {
+        alert(`Please answer question ${index + 1}.`);
+        return;
+      }
+      if ((response === "No" || response === "N/A") && !explanation) {
+        alert(`Question ${index + 1}: No or N/A requires an explanation.`);
+        return;
+      }
+      if (response === "Yes" && !artifactInput?.files?.length && !existing.artifact_path) {
+        alert(`Question ${index + 1}: Yes requires an artifact upload.`);
+        return;
+      }
     }
     if (artifactInput?.files?.length) {
       formData.append(`artifact_${index}`, artifactInput.files[0]);
@@ -779,9 +810,14 @@ async function submitDepartmentForm(event) {
 
   try {
     await api(`/department/assessments/${activeMainAssessment.assessment_id}/submit`, { method: "POST", body: formData });
-    showToast(`${getRoleLabel()} assessment submitted to Admin.`);
-    await loadDepartmentWorkflowData();
-    showPage("pending-approval");
+    showToast(currentRole === "employee" ? "Vendor Information saved." : `${getRoleLabel()} assessment submitted to Admin.`);
+    if (currentRole === "employee") {
+      await loadEmployeeData();
+      showPage("my-submissions");
+    } else {
+      await loadDepartmentWorkflowData();
+      showPage("pending-approval");
+    }
   } catch (error) {
     alert(error.message);
   }
@@ -885,74 +921,6 @@ function populateSignoffRole() {
   }
 }
 
-async function generateAdminExcel() {
-  try {
-    if (refreshBtn) {
-      refreshBtn.disabled = true;
-      refreshBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Generating...`;
-    }
-
-    const response = await fetch("/admin/export-excel");
-
-    if (!response.ok) {
-      let message = "Failed to generate Excel.";
-
-      try {
-        const errorData = await response.json();
-        message = errorData.message || message;
-      } catch (_error) {}
-
-      alert(message);
-      return;
-    }
-
-    const blob = await response.blob();
-    const downloadUrl = window.URL.createObjectURL(blob);
-
-    const link = document.createElement("a");
-    link.href = downloadUrl;
-    link.download = "Validify_Due_Diligence_Report.xlsx";
-
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-
-    window.URL.revokeObjectURL(downloadUrl);
-
-    showToast("Excel report generated.");
-  } catch (error) {
-    console.error("Generate Excel error:", error);
-    alert("Failed to generate Excel report.");
-  } finally {
-    updateTopActionButton();
-    if (refreshBtn) {
-      refreshBtn.disabled = false;
-    }
-  }
-}
-
-function updateTopActionButton() {
-  if (!refreshBtn) return;
-
-  if (currentRole === "admin") {
-    refreshBtn.innerHTML = `<i class="fa-solid fa-file-excel"></i> Generate Excel`;
-  } else {
-    refreshBtn.innerHTML = `<i class="fa-solid fa-rotate"></i> Refresh`;
-  }
-}
-
-if (refreshBtn) {
-  refreshBtn.addEventListener("click", async () => {
-    if (currentRole === "admin") {
-      await generateAdminExcel();
-      return;
-    }
-
-    refreshCurrentPage();
-    showToast("Page refreshed.");
-  });
-}
-
 async function submitSignoff(event) {
   event.preventDefault();
   const formData = new FormData();
@@ -973,10 +941,96 @@ async function submitSignoff(event) {
   }
 }
 
+
+async function generateAdminExcel() {
+  try {
+    if (refreshBtn) {
+      refreshBtn.disabled = true;
+      refreshBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Generating...`;
+    }
+
+    const response = await fetch("/admin/export-excel", {
+      credentials: "same-origin"
+    });
+
+    if (!response.ok) {
+      let message = "Failed to generate Excel report.";
+      try {
+        const data = await response.json();
+        message = data.message || message;
+      } catch (_error) {}
+      alert(message);
+      return;
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "Validify_Due_Diligence_Report.xlsx";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+
+    showToast("Excel report generated.");
+  } catch (error) {
+    console.error("Generate Excel error:", error);
+    alert("Failed to generate Excel report.");
+  } finally {
+    if (refreshBtn) {
+      refreshBtn.disabled = false;
+      updateTopActionButton();
+    }
+  }
+}
+
+function updateTopActionButton() {
+  if (!refreshBtn) return;
+
+  if (currentRole === "admin") {
+    refreshBtn.innerHTML = `<i class="fa-solid fa-file-excel"></i> Generate Excel`;
+  } else {
+    refreshBtn.innerHTML = `<i class="fa-solid fa-rotate"></i> Refresh`;
+  }
+}
+
+async function loadEmployeeAssessment(assessmentId) {
+  const data = await api(`/department/assessments/${assessmentId}`);
+  activeMainAssessment = data.assessment;
+  activeDepartmentAssessment = data.department_assessment;
+  departmentQuestions = data.questions || [];
+  activeDepartmentAnswers = {};
+
+  (data.answers || []).forEach((answer) => {
+    activeDepartmentAnswers[answer.question_index] = answer;
+  });
+
+  if (infosecAssessmentCode) infosecAssessmentCode.value = activeMainAssessment.assessment_code || "";
+  if (infosecAssessmentDate) infosecAssessmentDate.value = formatDateForInput(activeMainAssessment.assessment_date || new Date());
+  if (infosecVendorSelect) infosecVendorSelect.value = String(activeMainAssessment.vendor_id || "");
+  if (existingInfoSecAssessment) existingInfoSecAssessment.value = String(activeMainAssessment.assessment_id || "");
+  if (infosecPurpose) infosecPurpose.value = activeMainAssessment.purpose || "Accreditation";
+
+  updateCurrentlyAssessingCard(activeMainAssessment);
+  renderDepartmentFormQuestions();
+}
+
 function setupEvents() {
   document.querySelectorAll("[data-page]").forEach((button) => {
     button.addEventListener("click", () => showPage(button.dataset.page));
   });
+
+  if (refreshBtn) {
+    refreshBtn.addEventListener("click", async () => {
+      if (currentRole === "admin") {
+        await generateAdminExcel();
+        return;
+      }
+      refreshCurrentPage();
+      showToast("Page refreshed.");
+    });
+  }
 
   if (accountToggle && accountMenu) {
     accountToggle.addEventListener("click", (event) => {
@@ -1021,15 +1075,7 @@ function setupEvents() {
       const id = existingInfoSecAssessment.value;
       if (!id) return;
       if (currentRole === "employee") {
-        const found = employeeAssessmentRows.find((item) => String(item.assessment_id) === String(id));
-        if (found) {
-          activeMainAssessment = found;
-          if (infosecAssessmentCode) infosecAssessmentCode.value = found.assessment_code || "";
-          if (infosecAssessmentDate) infosecAssessmentDate.value = formatDateForInput(found.assessment_date || new Date());
-          if (infosecVendorSelect) infosecVendorSelect.value = String(found.vendor_id);
-          if (infosecPurpose) infosecPurpose.value = found.purpose || "Accreditation";
-          updateCurrentlyAssessingCard(found);
-        }
+        await loadEmployeeAssessment(id);
       } else if (isDepartmentRole()) {
         await loadDepartmentAssessment(id);
       }

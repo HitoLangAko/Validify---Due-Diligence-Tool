@@ -32,6 +32,7 @@ const departmentRoles = [
 ];
 
 const roleLabels = {
+  employee: "Employee",
   it: "IT",
   infosec: "InfoSec",
   management: "Management",
@@ -86,6 +87,12 @@ const resiliencyQuestions = [
 ];
 
 const departmentQuestionGroups = {
+  employee: [
+    {
+      section_name: "Vendor Information",
+      questions: vendorInformationQuestions
+    }
+  ],
   infosec: [
     {
       section_name: "Information Security",
@@ -377,7 +384,7 @@ async function initDatabase() {
     CREATE TABLE IF NOT EXISTS department_reviews (
       review_id INT AUTO_INCREMENT PRIMARY KEY,
       vendor_id INT NOT NULL,
-      department_role ENUM('it', 'infosec', 'management', 'dpo', 'hr', 'compliance') NOT NULL,
+      department_role ENUM('employee', 'it', 'infosec', 'management', 'dpo', 'hr', 'compliance') NOT NULL,
       reviewer_user_id INT NULL,
       review_status ENUM('Pending', 'Reviewed', 'Rejected', 'Approved') DEFAULT 'Pending',
       comments TEXT,
@@ -405,7 +412,7 @@ async function initDatabase() {
     CREATE TABLE IF NOT EXISTS department_assessments (
       department_assessment_id INT AUTO_INCREMENT PRIMARY KEY,
       assessment_id INT NOT NULL,
-      department_role ENUM('it', 'infosec', 'management', 'dpo', 'hr', 'compliance') NOT NULL,
+      department_role ENUM('employee', 'it', 'infosec', 'management', 'dpo', 'hr', 'compliance') NOT NULL,
       submitted_by_user_id INT NULL,
       status ENUM('Pending', 'Draft', 'Pending Admin Approval', 'Approved', 'Rejected') DEFAULT 'Pending',
       admin_comment TEXT NULL,
@@ -417,6 +424,16 @@ async function initDatabase() {
     )
   `);
 
+  try {
+    await runQuery(`
+      ALTER TABLE department_assessments MODIFY department_role ENUM(
+        'employee', 'it', 'infosec', 'management', 'dpo', 'hr', 'compliance'
+      ) NOT NULL
+    `);
+  } catch (error) {
+    console.log("Skipping department assessment role enum update:", error.message);
+  }
+
   await runQuery(`
     CREATE TABLE IF NOT EXISTS department_answers (
       answer_id INT AUTO_INCREMENT PRIMARY KEY,
@@ -424,7 +441,7 @@ async function initDatabase() {
       section_name VARCHAR(150) NOT NULL,
       question_index INT NOT NULL,
       question_text TEXT NOT NULL,
-      response ENUM('Yes', 'No', 'N/A') NOT NULL,
+      response VARCHAR(100) NOT NULL,
       explanation TEXT NULL,
       artifact_path VARCHAR(255) NULL,
       artifact_name VARCHAR(255) NULL,
@@ -433,6 +450,15 @@ async function initDatabase() {
       UNIQUE KEY unique_department_answer (department_assessment_id, question_index)
     )
   `);
+
+  try {
+    await runQuery(`
+      ALTER TABLE department_answers
+      MODIFY COLUMN response VARCHAR(100) NOT NULL
+    `);
+  } catch (error) {
+    console.log("Skipping department answer response migration:", error.message);
+  }
 
   await runQuery(`
     CREATE TABLE IF NOT EXISTS sign_offs (
@@ -521,7 +547,8 @@ async function ensureDepartmentAssessment(assessmentId, departmentRole, statusWh
 }
 
 async function createAllDepartmentAssessments(assessmentId) {
-  const values = departmentRoles.map((role) => [assessmentId, role, "Pending"]);
+  const rolesToCreate = ["employee", ...departmentRoles];
+  const values = rolesToCreate.map((role) => [assessmentId, role, "Pending"]);
 
   await runQuery(
     `
@@ -536,7 +563,7 @@ async function createAllDepartmentAssessments(assessmentId) {
 async function updateMainAssessmentStatus(assessmentId) {
   const rows = await runQuery(
     `
-      SELECT status
+      SELECT status, department_role
       FROM department_assessments
       WHERE assessment_id = ?
     `,
@@ -544,10 +571,11 @@ async function updateMainAssessmentStatus(assessmentId) {
   );
 
   let overallStatus = "In Review";
+  const reviewRows = rows.filter((row) => row.department_role !== "employee");
 
-  if (rows.some((row) => row.status === "Rejected")) {
+  if (reviewRows.some((row) => row.status === "Rejected")) {
     overallStatus = "Rejected";
-  } else if (rows.length >= departmentRoles.length && rows.every((row) => row.status === "Approved")) {
+  } else if (reviewRows.length >= departmentRoles.length && reviewRows.every((row) => row.status === "Approved")) {
     overallStatus = "Approved";
   } else if (rows.some((row) => row.status === "Pending Admin Approval")) {
     overallStatus = "Pending Admin Approval";
@@ -811,11 +839,11 @@ app.get("/vendor-assessments/mine", requireAnyRole(["employee", ...departmentRol
 
 /* GENERIC DEPARTMENT WORKFLOW */
 
-app.get("/department/questions", requireDepartment, (req, res) => {
+app.get("/department/questions", requireAnyRole(["employee", ...departmentRoles]), (req, res) => {
   res.json(flattenQuestionsForRole(req.session.user.role));
 });
 
-app.get("/department/queue", requireDepartment, async (req, res) => {
+app.get("/department/queue", requireAnyRole(["employee", ...departmentRoles]), async (req, res) => {
   const departmentRole = req.session.user.role;
 
   try {
@@ -856,7 +884,7 @@ app.get("/department/queue", requireDepartment, async (req, res) => {
   }
 });
 
-app.get("/department/assessments", requireDepartment, async (req, res) => {
+app.get("/department/assessments", requireAnyRole(["employee", ...departmentRoles]), async (req, res) => {
   const departmentRole = req.session.user.role;
 
   try {
@@ -894,7 +922,7 @@ app.get("/department/assessments", requireDepartment, async (req, res) => {
   }
 });
 
-app.post("/department/assessments/:assessment_id/start", requireDepartment, async (req, res) => {
+app.post("/department/assessments/:assessment_id/start", requireAnyRole(["employee", ...departmentRoles]), async (req, res) => {
   const assessmentId = req.params.assessment_id;
   const departmentRole = req.session.user.role;
 
@@ -943,7 +971,7 @@ app.post("/department/assessments/:assessment_id/start", requireDepartment, asyn
   }
 });
 
-app.get("/department/assessments/:assessment_id", requireDepartment, async (req, res) => {
+app.get("/department/assessments/:assessment_id", requireAnyRole(["employee", ...departmentRoles]), async (req, res) => {
   const assessmentId = req.params.assessment_id;
   const departmentRole = req.session.user.role;
 
@@ -991,7 +1019,7 @@ app.get("/department/assessments/:assessment_id", requireDepartment, async (req,
   }
 });
 
-app.post("/department/assessments/:assessment_id/submit", requireDepartment, upload.any(), async (req, res) => {
+app.post("/department/assessments/:assessment_id/submit", requireAnyRole(["employee", ...departmentRoles]), upload.any(), async (req, res) => {
   const assessmentId = req.params.assessment_id;
   const departmentRole = req.session.user.role;
 
@@ -1018,16 +1046,22 @@ app.post("/department/assessments/:assessment_id/submit", requireDepartment, upl
   });
 
   for (const answer of answers) {
-    if (!["Yes", "No", "N/A"].includes(answer.response)) {
-      return res.status(400).json({ message: "Each question must have a valid response." });
-    }
+    if (departmentRole === "employee") {
+      if (!String(answer.explanation || "").trim()) {
+        return res.status(400).json({ message: "Each Vendor Information question requires an answer." });
+      }
+    } else {
+      if (!["Yes", "No", "N/A"].includes(answer.response)) {
+        return res.status(400).json({ message: "Each question must have a valid response." });
+      }
 
-    if ((answer.response === "No" || answer.response === "N/A") && !String(answer.explanation || "").trim()) {
-      return res.status(400).json({ message: "No and N/A responses require an explanation." });
-    }
+      if ((answer.response === "No" || answer.response === "N/A") && !String(answer.explanation || "").trim()) {
+        return res.status(400).json({ message: "No and N/A responses require an explanation." });
+      }
 
-    if (answer.response === "Yes" && !filesByQuestion[answer.question_index] && !answer.existing_artifact_path) {
-      return res.status(400).json({ message: "Yes responses require an artifact or uploaded file." });
+      if (answer.response === "Yes" && !filesByQuestion[answer.question_index] && !answer.existing_artifact_path) {
+        return res.status(400).json({ message: "Yes responses require an artifact or uploaded file." });
+      }
     }
   }
 
@@ -1049,7 +1083,7 @@ app.post("/department/assessments/:assessment_id/submit", requireDepartment, upl
         matchedQuestion?.section_name || answer.section_name || roleLabels[departmentRole] || departmentRole,
         answer.question_index,
         matchedQuestion?.question_text || answer.question_text || "",
-        answer.response,
+        departmentRole === "employee" ? "TEXT_ANSWER" : answer.response,
         answer.explanation || null,
         file ? `/uploads/${file.filename}` : answer.existing_artifact_path || null,
         file ? file.originalname : answer.existing_artifact_name || null
@@ -1084,23 +1118,25 @@ app.post("/department/assessments/:assessment_id/submit", requireDepartment, upl
       [req.session.user.user_id, departmentAssessment.department_assessment_id]
     );
 
-    await runQuery(
-      `
-        UPDATE department_reviews
-        SET review_status = 'Reviewed',
-            reviewer_user_id = ?,
-            comments = ?,
-            reviewed_at = CURRENT_TIMESTAMP
-        WHERE vendor_id = ?
-        AND department_role = ?
-      `,
-      [
-        req.session.user.user_id,
-        `${roleLabels[departmentRole] || departmentRole} form submitted to Admin.`,
-        assessmentRows[0].vendor_id,
-        departmentRole
-      ]
-    );
+    if (departmentRole !== "employee") {
+      await runQuery(
+        `
+          UPDATE department_reviews
+          SET review_status = 'Reviewed',
+              reviewer_user_id = ?,
+              comments = ?,
+              reviewed_at = CURRENT_TIMESTAMP
+          WHERE vendor_id = ?
+          AND department_role = ?
+        `,
+        [
+          req.session.user.user_id,
+          `${roleLabels[departmentRole] || departmentRole} form submitted to Admin.`,
+          assessmentRows[0].vendor_id,
+          departmentRole
+        ]
+      );
+    }
 
     await updateMainAssessmentStatus(assessmentId);
 
@@ -1525,22 +1561,30 @@ function buildExportRowsForRole(role, answers) {
   });
 }
 
-function buildVendorInformationExportRows() {
-  return vendorInformationQuestions.map((question, index) => ({
-    department_role: "employee",
-    section_name: "Vendor Information",
-    question_index: index,
-    question_text: question,
-    response: "",
-    explanation: "",
-    artifact_name: "",
-    artifact_path: ""
-  }));
+function buildVendorInformationExportRows(answers) {
+  const lookup = makeAnswerLookup(answers);
+
+  return vendorInformationQuestions.map((question, index) => {
+    const byIndex = lookup[`employee|${Number(index)}`];
+    const byText = lookup[`employee|vendor information|${normalizeSectionName(question)}`];
+    const saved = byIndex || byText || {};
+
+    return {
+      department_role: "employee",
+      section_name: "Vendor Information",
+      question_index: index,
+      question_text: question,
+      response: saved.response || "",
+      explanation: saved.explanation || "",
+      artifact_name: saved.artifact_name || "",
+      artifact_path: saved.artifact_path || ""
+    };
+  });
 }
 
 function buildSupplierDDFRows(answers) {
   return [
-    ...buildVendorInformationExportRows(),
+    ...buildVendorInformationExportRows(answers),
     ...buildExportRowsForRole("management", answers),
     ...buildExportRowsForRole("it", answers),
     ...buildExportRowsForRole("compliance", answers),
@@ -1677,9 +1721,10 @@ function createSupplierDDFSheet(workbook, assessment = {}, answers = []) {
     row++;
 
     sectionRows.forEach((item) => {
-      const commentText = answerComment(item);
+      const isVendorInfoText = item.department_role === "employee" && item.response === "TEXT_ANSWER";
+      const commentText = isVendorInfoText ? "" : answerComment(item);
       const questionText = item.question_text || "";
-      const responseText = item.response || "";
+      const responseText = isVendorInfoText ? (item.explanation || "") : (item.response || "");
 
       sheet.getCell(`A${row}`).value = questionText;
       sheet.getCell(`B${row}`).value = responseText;
@@ -2013,7 +2058,7 @@ app.get("/admin/export-excel", requireRole("admin"), async (req, res) => {
             ON va.vendor_id = v.vendor_id
           WHERE va.assessment_id = ?
           ORDER BY
-            FIELD(da.department_role, 'management', 'it', 'compliance', 'dpo', 'hr', 'infosec'),
+            FIELD(da.department_role, 'employee', 'management', 'it', 'compliance', 'dpo', 'hr', 'infosec'),
             ans.question_index ASC
         `,
         [selectedAssessmentId]
@@ -2079,3 +2124,4 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+    
