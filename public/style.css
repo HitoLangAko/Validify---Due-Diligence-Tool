@@ -3360,3 +3360,70 @@ body[data-role="compliance"] #vendorAssessmentPage .vendor-assessment-card {
     width: 100%;
   }
 }
+
+/* Fix account menu being clipped in sidebar */
+.sidebar,
+.sidebar-main,
+.nav-menu,
+.sidebar-bottom {
+  overflow: visible !important;
+}
+
+.account-menu {
+  bottom: 78px !important;
+  z-index: 99999 !important;
+  overflow: visible !important;
+  background: #ffffff;
+  border: 1px solid #dfe5ee;
+  border-radius: 18px;
+  padding: 12px;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+}
+
+/* Make account menu buttons visible */
+.account-menu-action,
+.logout-btn {
+  display: flex !important;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 42px;
+  border: none;
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.account-menu-action:hover,
+.logout-btn:hover {
+  background: #f4f7fb;
+}
+
+.account-menu-action {
+  color: #13233f !important;
+}
+
+.account-menu-action i {
+  color: #13233f !important;
+}
+
+.logout-btn,
+.logout-btn i {
+  color: #b42318 !important;
+}
+
+/* Fix avatar image/icon alignment */
+.account-avatar,
+.account-menu-avatar {
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.account-avatar img,
+.account-menu-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
