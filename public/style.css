@@ -2548,3 +2548,20 @@ body[data-role="employee"] #vendorQueuePage {
   color: #1e293b;
   border-color: #94a3b8;
 }
+
+/* FIX: show employee Vendor Information submit button */
+html body[data-role="employee"] #vendorAssessmentPage .infosec-form-card .vendor-form-actions {
+  display: flex !important;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 18px;
+  margin-top: 24px;
+}
+
+html body[data-role="employee"] #vendorAssessmentPage #cancelInfoSecAssessmentBtn {
+  display: none !important;
+}
+
+html body[data-role="employee"] #vendorAssessmentPage #submitDepartmentFormBtn {
+  width: 280px;
+}
