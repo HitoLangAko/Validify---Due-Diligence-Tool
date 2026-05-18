@@ -32,37 +32,37 @@
             <span>Dashboard</span>
           </button>
 
-          <button class="nav-link" data-page="add-vendor" data-roles="employee,infosec" type="button">
+          <button class="nav-link" data-page="add-vendor" data-roles="employee,it,infosec,management,dpo,hr,compliance" type="button">
             <i class="fa-solid fa-plus"></i>
             <span>Insert Vendor</span>
           </button>
 
-          <button class="nav-link" data-page="my-submissions" data-roles="employee,infosec" type="button">
+          <button class="nav-link" data-page="my-submissions" data-roles="employee,it,infosec,management,dpo,hr,compliance" type="button">
             <i class="fa-solid fa-folder-open"></i>
             <span>My Submissions</span>
           </button>
 
-          <button class="nav-link" data-page="vendor-queue" data-roles="infosec" type="button">
+          <button class="nav-link" data-page="vendor-queue" data-roles="it,infosec,management,dpo,hr,compliance" type="button">
             <i class="fa-solid fa-list-check"></i>
             <span>Vendor Queue</span>
           </button>
 
-          <button class="nav-link hidden" data-page="vendor-assessment" data-roles="infosec" type="button" id="vendorAssessmentNavBtn">
+          <button class="nav-link hidden" data-page="vendor-assessment" data-roles="it,infosec,management,dpo,hr,compliance" type="button" id="vendorAssessmentNavBtn">
             <i class="fa-solid fa-clipboard-check"></i>
             <span>Vendor Assessment</span>
           </button>
 
-          <button class="nav-link" data-page="pending-approval" data-roles="infosec" type="button">
+          <button class="nav-link" data-page="pending-approval" data-roles="it,infosec,management,dpo,hr,compliance" type="button">
             <i class="fa-solid fa-clock"></i>
             <span>Pending Approval</span>
           </button>
 
-          <button class="nav-link" data-page="signoff" data-roles="infosec" type="button">
+          <button class="nav-link" data-page="signoff" data-roles="it,infosec,management,dpo,hr,compliance" type="button">
             <i class="fa-solid fa-file-signature"></i>
             <span>Sign off</span>
           </button>
 
-          <button class="nav-link" data-page="department-assessments" data-roles="it,management,dpo,hr,compliance" type="button">
+          <button class="nav-link" data-page="department-assessments" data-roles="__none__" type="button">
             <i class="fa-solid fa-clipboard-check"></i>
             <span>Vendor Assessments</span>
           </button>
@@ -336,7 +336,7 @@
 
         <section class="page" id="vendorAssessmentPage">
         <div class="content-card vendor-assessment-card">
-          <h3>Information Security Assessment</h3>
+          <h3 id="departmentAssessmentHeading">Information Security Assessment</h3>
 
           <div class="assessment-meta-grid">
             <div class="field-group">
@@ -458,7 +458,12 @@
               <label>Department / Role</label>
               <select id="signoffRole" required>
                 <option value="">Select Role</option>
+                <option value="IT">IT</option>
                 <option value="InfoSec">InfoSec</option>
+                <option value="Management">Management</option>
+                <option value="DPO">DPO</option>
+                <option value="HR">HR</option>
+                <option value="Compliance">Compliance</option>
               </select>
             </div>
 

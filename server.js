@@ -49,6 +49,104 @@ const infoSecQuestions = [
   "Do you have an Incident Response Plan for ransomware, phishing, and data breach scenarios?"
 ];
 
+const departmentQuestionSets = {
+  it: [
+    { section_name: "IT Risk Management", question_text: "Does the vendor maintain an inventory of systems, applications, and technology assets used to deliver the service?" },
+    { section_name: "IT Risk Management", question_text: "Does the vendor have documented procedures for secure system configuration and change management?" },
+    { section_name: "IT Risk Management", question_text: "Does the vendor perform vulnerability assessment or patch management on its systems?" },
+    { section_name: "IT Risk Management", question_text: "Does the vendor maintain backup and recovery procedures for systems supporting the service?" },
+    { section_name: "IT Risk Management", question_text: "Does the vendor monitor system availability, performance, and technical incidents?" },
+    { section_name: "IT Risk Management", question_text: "Does the vendor have controls for third-party tools, integrations, and system access?" }
+  ],
+  infosec: infoSecQuestions.map((question_text) => ({
+    section_name: "Information Security",
+    question_text
+  })),
+  management: [
+    { section_name: "Consumer", question_text: "How do you ensure that client complaints are addressed quickly and adequately?" },
+    { section_name: "Consumer", question_text: "Does the vendor provide clear service terms, limitations, and responsibilities to customers or clients?" },
+    { section_name: "Consumer", question_text: "Does the vendor have procedures for notifying the company about customer-impacting incidents?" },
+    { section_name: "Consumer", question_text: "Does the vendor maintain proper records related to consumer or customer transactions?" },
+    { section_name: "Resiliency", question_text: "Does the vendor have a documented Business Continuity Plan?" },
+    { section_name: "Resiliency", question_text: "Does the vendor have a documented Disaster Recovery Plan?" },
+    { section_name: "Resiliency", question_text: "Does the vendor test recovery procedures regularly?" },
+    { section_name: "Resiliency", question_text: "Does the vendor define Recovery Time Objective and Recovery Point Objective for critical services?" }
+  ],
+  dpo: [
+    { section_name: "Data Privacy", question_text: "Does the vendor process, store, or transmit personal data on behalf of the company?" },
+    { section_name: "Data Privacy", question_text: "Does the vendor have documented privacy policies and data protection procedures?" },
+    { section_name: "Data Privacy", question_text: "Does the vendor follow consent, notice, and lawful processing requirements for personal data?" },
+    { section_name: "Data Privacy", question_text: "Does the vendor have a procedure for handling data subject requests?" },
+    { section_name: "Data Privacy", question_text: "Does the vendor have a process for reporting data privacy incidents or breaches?" },
+    { section_name: "Data Privacy", question_text: "Does the vendor apply retention and secure disposal rules for personal data?" }
+  ],
+  hr: [
+    { section_name: "Human Resources", question_text: "Does the vendor conduct background checks or screening for personnel assigned to the service?" },
+    { section_name: "Human Resources", question_text: "Does the vendor provide security, privacy, or compliance training to its employees?" },
+    { section_name: "Human Resources", question_text: "Does the vendor require confidentiality agreements for personnel handling company information?" },
+    { section_name: "Human Resources", question_text: "Does the vendor have onboarding and offboarding procedures for user access?" },
+    { section_name: "Human Resources", question_text: "Does the vendor have disciplinary procedures for policy or compliance violations?" },
+    { section_name: "Human Resources", question_text: "Does the vendor maintain records of employee training and acknowledgements?" }
+  ],
+  compliance: [
+    { section_name: "Compliance", question_text: "Enumerate the top shareholders and officers of the vendor as indicated in the General Information Sheet." },
+    { section_name: "Compliance", question_text: "Does the vendor comply with applicable laws, regulations, and industry standards?" },
+    { section_name: "Compliance", question_text: "Does the vendor maintain documented compliance policies and procedures?" },
+    { section_name: "Compliance", question_text: "Has the vendor identified the regulatory requirements applicable to its services?" },
+    { section_name: "Compliance", question_text: "Does the vendor conduct periodic compliance reviews or audits?" },
+    { section_name: "Compliance", question_text: "Do you have policies and procedures to comply with AML and CFT regulations?" },
+    { section_name: "Compliance", question_text: "Will the service to be provided involve AML-related transactions?" },
+    { section_name: "Compliance", question_text: "Does the vendor have procedures for handling regulatory changes?" },
+    { section_name: "Resiliency", question_text: "Does the vendor have a documented Business Continuity Plan?" },
+    { section_name: "Resiliency", question_text: "Is there a specific alternate site documented in the BCP?" },
+    { section_name: "Resiliency", question_text: "Does the vendor have a documented Disaster Recovery Plan?" },
+    { section_name: "Resiliency", question_text: "Does the vendor perform regular backup procedures?" },
+    { section_name: "Resiliency", question_text: "Does the vendor test recovery procedures regularly?" },
+    { section_name: "Resiliency", question_text: "Does the vendor maintain communication procedures for business disruptions?" }
+  ]
+};
+
+const assessmentPrefixes = {
+  it: "IT",
+  infosec: "IA",
+  management: "MG",
+  dpo: "DP",
+  hr: "HR",
+  compliance: "CP"
+};
+
+const defaultPurposes = {
+  it: "IT Risk Management",
+  infosec: "Information Security",
+  management: "Management Review",
+  dpo: "Data Privacy",
+  hr: "HR Review",
+  compliance: "Compliance Review"
+};
+
+function getDepartmentQuestions(role) {
+  const questions = departmentQuestionSets[role] || [];
+  return questions.map((item, index) => ({
+    question_index: index,
+    section_name: item.section_name || getRoleLabelForServer(role),
+    question_text: item.question_text || String(item)
+  }));
+}
+
+function getRoleLabelForServer(role) {
+  const labels = {
+    it: "IT",
+    infosec: "InfoSec",
+    management: "Management",
+    dpo: "DPO",
+    hr: "HR",
+    compliance: "Compliance"
+  };
+
+  return labels[role] || role;
+}
+
+
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -310,6 +408,54 @@ async function initDatabase() {
     )
   `);
 
+
+  await runQuery(`
+    CREATE TABLE IF NOT EXISTS department_assessments (
+      assessment_id INT AUTO_INCREMENT PRIMARY KEY,
+      assessment_code VARCHAR(30) UNIQUE,
+      department_role ENUM(
+        'it',
+        'infosec',
+        'management',
+        'dpo',
+        'hr',
+        'compliance'
+      ) NOT NULL,
+      vendor_id INT NOT NULL,
+      submitted_by_user_id INT NOT NULL,
+      purpose VARCHAR(150) DEFAULT NULL,
+      assessment_date DATE NULL,
+      status ENUM('Draft', 'Pending Admin Approval', 'Approved', 'Rejected') DEFAULT 'Draft',
+      admin_comment TEXT NULL,
+      submitted_at TIMESTAMP NULL,
+      approved_at TIMESTAMP NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )
+  `);
+
+  await addColumnIfMissing("department_assessments", "assessment_date", "DATE NULL");
+  await addColumnIfMissing("department_assessments", "admin_comment", "TEXT NULL");
+
+  await runQuery(`
+    CREATE TABLE IF NOT EXISTS department_answers (
+      answer_id INT AUTO_INCREMENT PRIMARY KEY,
+      assessment_id INT NOT NULL,
+      question_index INT NOT NULL,
+      section_name VARCHAR(150) NULL,
+      question_text TEXT NOT NULL,
+      response ENUM('Yes', 'No', 'N/A') NOT NULL,
+      explanation TEXT NULL,
+      artifact_path VARCHAR(255) NULL,
+      artifact_name VARCHAR(255) NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY unique_department_answer (assessment_id, question_index)
+    )
+  `);
+
+  await addColumnIfMissing("department_answers", "section_name", "VARCHAR(150) NULL");
+
   await runQuery(`
     CREATE TABLE IF NOT EXISTS sign_offs (
       signoff_id INT AUTO_INCREMENT PRIMARY KEY,
@@ -440,7 +586,7 @@ app.post("/logout", (req, res) => {
 
 /* VENDOR ROUTES */
 
-app.post("/vendors", requireAnyRole(["employee", "infosec"]), (req, res) => {
+app.post("/vendors", requireAnyRole(["employee", ...departmentRoles]), (req, res) => {
   const {
     company_name,
     company_website,
@@ -522,7 +668,7 @@ app.post("/vendors", requireAnyRole(["employee", "infosec"]), (req, res) => {
   );
 });
 
-app.get("/vendors/mine", requireAnyRole(["employee", "infosec"]), (req, res) => {
+app.get("/vendors/mine", requireAnyRole(["employee", ...departmentRoles]), (req, res) => {
   const sql = `
     SELECT
       v.vendor_id,
@@ -668,6 +814,474 @@ function updateVendorOverallStatus(vendorId, callback) {
     db.query(updateSql, [overallStatus, vendorId], () => callback());
   });
 }
+
+
+/* DEPARTMENT ASSESSMENT ROUTES */
+
+app.get("/department/questions", requireAnyRole(departmentRoles), (req, res) => {
+  res.json(getDepartmentQuestions(req.session.user.role));
+});
+
+app.get("/department/queue", requireAnyRole(departmentRoles), (req, res) => {
+  const departmentRole = req.session.user.role;
+
+  const sql = `
+    SELECT
+      v.vendor_id,
+      v.company_name,
+      v.product_services_offered,
+      v.contact_person_name,
+      v.contact_email,
+      v.created_at,
+      u.full_name AS submitted_by,
+      dr.review_status,
+      (
+        SELECT da.assessment_code
+        FROM department_assessments da
+        WHERE da.vendor_id = v.vendor_id
+        AND da.department_role = ?
+        ORDER BY da.assessment_id DESC
+        LIMIT 1
+      ) AS latest_assessment_code,
+      (
+        SELECT da.status
+        FROM department_assessments da
+        WHERE da.vendor_id = v.vendor_id
+        AND da.department_role = ?
+        ORDER BY da.assessment_id DESC
+        LIMIT 1
+      ) AS latest_assessment_status
+    FROM department_reviews dr
+    JOIN vendors v ON dr.vendor_id = v.vendor_id
+    LEFT JOIN users u ON v.created_by_user_id = u.user_id
+    WHERE dr.department_role = ?
+    ORDER BY v.created_at DESC
+  `;
+
+  db.query(sql, [departmentRole, departmentRole, departmentRole], (err, rows) => {
+    if (err) {
+      console.error("Fetch department queue error:", err);
+      return res.status(500).json({ message: "Failed to load department queue." });
+    }
+
+    res.json(rows);
+  });
+});
+
+app.post("/department/assessments/start", requireAnyRole(departmentRoles), (req, res) => {
+  const departmentRole = req.session.user.role;
+  const { vendor_id, purpose, assessment_date, force_new } = req.body;
+
+  if (!vendor_id) {
+    return res.status(400).json({ message: "Vendor is required." });
+  }
+
+  function createNewAssessment() {
+    const insertSql = `
+      INSERT INTO department_assessments
+      (
+        department_role,
+        vendor_id,
+        submitted_by_user_id,
+        purpose,
+        assessment_date,
+        status
+      )
+      VALUES (?, ?, ?, ?, ?, 'Draft')
+    `;
+
+    db.query(
+      insertSql,
+      [
+        departmentRole,
+        vendor_id,
+        req.session.user.user_id,
+        purpose || defaultPurposes[departmentRole] || getRoleLabelForServer(departmentRole),
+        assessment_date || null
+      ],
+      (insertErr, result) => {
+        if (insertErr) {
+          console.error("Start department assessment error:", insertErr);
+          return res.status(500).json({ message: "Failed to start assessment." });
+        }
+
+        const assessmentId = result.insertId;
+        const prefix = assessmentPrefixes[departmentRole] || "DA";
+        const assessmentCode = `${prefix}-${String(assessmentId).padStart(3, "0")}`;
+
+        const updateSql = `
+          UPDATE department_assessments
+          SET assessment_code = ?
+          WHERE assessment_id = ?
+        `;
+
+        db.query(updateSql, [assessmentCode, assessmentId], (updateErr) => {
+          if (updateErr) {
+            console.error("Update department assessment code error:", updateErr);
+            return res.status(500).json({ message: "Failed to create assessment ID." });
+          }
+
+          res.json({
+            assessment_id: assessmentId,
+            assessment_code: assessmentCode,
+            department_role: departmentRole,
+            vendor_id,
+            submitted_by_user_id: req.session.user.user_id,
+            purpose: purpose || defaultPurposes[departmentRole] || getRoleLabelForServer(departmentRole),
+            assessment_date: assessment_date || null,
+            status: "Draft",
+            created_at: new Date().toISOString()
+          });
+        });
+      }
+    );
+  }
+
+  if (force_new) {
+    createNewAssessment();
+    return;
+  }
+
+  const findDraftSql = `
+    SELECT *
+    FROM department_assessments
+    WHERE vendor_id = ?
+    AND submitted_by_user_id = ?
+    AND department_role = ?
+    AND status = 'Draft'
+    ORDER BY assessment_id DESC
+    LIMIT 1
+  `;
+
+  db.query(findDraftSql, [vendor_id, req.session.user.user_id, departmentRole], (findErr, drafts) => {
+    if (findErr) {
+      console.error("Find department draft error:", findErr);
+      return res.status(500).json({ message: "Failed to start assessment." });
+    }
+
+    if (drafts.length > 0) {
+      return res.json(drafts[0]);
+    }
+
+    createNewAssessment();
+  });
+});
+
+app.get("/department/assessments/mine", requireAnyRole(departmentRoles), (req, res) => {
+  const departmentRole = req.session.user.role;
+
+  const sql = `
+    SELECT
+      da.assessment_id,
+      da.assessment_code,
+      da.department_role,
+      da.vendor_id,
+      da.purpose,
+      da.assessment_date,
+      da.status,
+      da.submitted_at,
+      da.created_at,
+      da.admin_comment,
+      v.company_name,
+      v.product_services_offered
+    FROM department_assessments da
+    JOIN vendors v ON da.vendor_id = v.vendor_id
+    WHERE da.submitted_by_user_id = ?
+    AND da.department_role = ?
+    ORDER BY da.created_at DESC
+  `;
+
+  db.query(sql, [req.session.user.user_id, departmentRole], (err, rows) => {
+    if (err) {
+      console.error("Fetch my department assessments error:", err);
+      return res.status(500).json({ message: "Failed to load submissions." });
+    }
+
+    res.json(rows);
+  });
+});
+
+app.get("/department/assessments/:assessment_id", requireAnyRole(departmentRoles), (req, res) => {
+  const departmentRole = req.session.user.role;
+  const { assessment_id } = req.params;
+
+  const sql = `
+    SELECT
+      da.*,
+      v.company_name,
+      v.product_services_offered
+    FROM department_assessments da
+    JOIN vendors v ON da.vendor_id = v.vendor_id
+    WHERE da.assessment_id = ?
+    AND da.submitted_by_user_id = ?
+    AND da.department_role = ?
+  `;
+
+  db.query(sql, [assessment_id, req.session.user.user_id, departmentRole], (err, rows) => {
+    if (err) {
+      console.error("Fetch department assessment error:", err);
+      return res.status(500).json({ message: "Failed to load assessment." });
+    }
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: "Assessment not found." });
+    }
+
+    const answersSql = `
+      SELECT *
+      FROM department_answers
+      WHERE assessment_id = ?
+      ORDER BY question_index
+    `;
+
+    db.query(answersSql, [assessment_id], (answerErr, answers) => {
+      if (answerErr) {
+        console.error("Fetch department answers error:", answerErr);
+        return res.status(500).json({ message: "Failed to load assessment answers." });
+      }
+
+      res.json({
+        assessment: rows[0],
+        answers
+      });
+    });
+  });
+});
+
+app.post("/department/assessments/:assessment_id/submit", requireAnyRole(departmentRoles), upload.any(), (req, res) => {
+  const departmentRole = req.session.user.role;
+  const { assessment_id } = req.params;
+
+  let answers;
+
+  try {
+    answers = JSON.parse(req.body.answers || "[]");
+  } catch (error) {
+    return res.status(400).json({ message: "Invalid answer data." });
+  }
+
+  if (!Array.isArray(answers) || answers.length === 0) {
+    return res.status(400).json({ message: "No answers submitted." });
+  }
+
+  const questions = getDepartmentQuestions(departmentRole);
+  const filesByQuestion = {};
+
+  (req.files || []).forEach((file) => {
+    const match = file.fieldname.match(/^artifact_(\d+)$/);
+    if (match) {
+      filesByQuestion[Number(match[1])] = file;
+    }
+  });
+
+  for (const answer of answers) {
+    if (!["Yes", "No", "N/A"].includes(answer.response)) {
+      return res.status(400).json({ message: "Each question must have a valid response." });
+    }
+
+    if ((answer.response === "No" || answer.response === "N/A") && !String(answer.explanation || "").trim()) {
+      return res.status(400).json({
+        message: "No and N/A responses require an explanation."
+      });
+    }
+
+    if (answer.response === "Yes" && !filesByQuestion[answer.question_index] && !answer.existing_artifact_path) {
+      return res.status(400).json({
+        message: "Yes responses require an artifact or uploaded file."
+      });
+    }
+  }
+
+  const checkSql = `
+    SELECT *
+    FROM department_assessments
+    WHERE assessment_id = ?
+    AND submitted_by_user_id = ?
+    AND department_role = ?
+  `;
+
+  db.query(checkSql, [assessment_id, req.session.user.user_id, departmentRole], (checkErr, rows) => {
+    if (checkErr) {
+      console.error("Check department assessment error:", checkErr);
+      return res.status(500).json({ message: "Failed to check assessment." });
+    }
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: "Assessment not found." });
+    }
+
+    const assessment = rows[0];
+
+    const values = answers.map((answer) => {
+      const file = filesByQuestion[answer.question_index];
+      const question = questions[answer.question_index] || {};
+
+      return [
+        assessment_id,
+        answer.question_index,
+        question.section_name || answer.section_name || getRoleLabelForServer(departmentRole),
+        question.question_text || answer.question_text || "",
+        answer.response,
+        answer.explanation || null,
+        file ? `/uploads/${file.filename}` : answer.existing_artifact_path || null,
+        file ? file.originalname : answer.existing_artifact_name || null
+      ];
+    });
+
+    const saveSql = `
+      INSERT INTO department_answers
+      (
+        assessment_id,
+        question_index,
+        section_name,
+        question_text,
+        response,
+        explanation,
+        artifact_path,
+        artifact_name
+      )
+      VALUES ?
+      ON DUPLICATE KEY UPDATE
+        section_name = VALUES(section_name),
+        question_text = VALUES(question_text),
+        response = VALUES(response),
+        explanation = VALUES(explanation),
+        artifact_path = VALUES(artifact_path),
+        artifact_name = VALUES(artifact_name),
+        updated_at = CURRENT_TIMESTAMP
+    `;
+
+    db.query(saveSql, [values], (saveErr) => {
+      if (saveErr) {
+        console.error("Save department answers error:", saveErr);
+        return res.status(500).json({ message: "Failed to save assessment answers." });
+      }
+
+      const submitSql = `
+        UPDATE department_assessments
+        SET purpose = ?,
+            status = 'Pending Admin Approval',
+            submitted_at = CURRENT_TIMESTAMP
+        WHERE assessment_id = ?
+      `;
+
+      db.query(submitSql, [req.body.purpose || assessment.purpose || defaultPurposes[departmentRole], assessment_id], (submitErr) => {
+        if (submitErr) {
+          console.error("Submit department assessment error:", submitErr);
+          return res.status(500).json({ message: "Failed to submit assessment." });
+        }
+
+        const reviewSql = `
+          UPDATE department_reviews
+          SET review_status = 'Reviewed',
+              reviewer_user_id = ?,
+              comments = ?,
+              reviewed_at = CURRENT_TIMESTAMP
+          WHERE vendor_id = ?
+          AND department_role = ?
+        `;
+
+        db.query(
+          reviewSql,
+          [
+            req.session.user.user_id,
+            `${getRoleLabelForServer(departmentRole)} assessment ${assessment.assessment_code || assessment_id} submitted to Admin.`,
+            assessment.vendor_id,
+            departmentRole
+          ],
+          () => {
+            updateVendorOverallStatus(assessment.vendor_id, () => {
+              res.json({ message: `${getRoleLabelForServer(departmentRole)} assessment submitted to Admin for approval.` });
+            });
+          }
+        );
+      });
+    });
+  });
+});
+
+app.get("/department/pending-approval", requireAnyRole(departmentRoles), (req, res) => {
+  const departmentRole = req.session.user.role;
+
+  const sql = `
+    SELECT
+      da.assessment_id,
+      da.assessment_code,
+      da.department_role,
+      da.vendor_id,
+      da.purpose,
+      da.assessment_date,
+      da.status,
+      da.submitted_at,
+      da.admin_comment,
+      v.company_name,
+      v.product_services_offered
+    FROM department_assessments da
+    JOIN vendors v ON da.vendor_id = v.vendor_id
+    WHERE da.submitted_by_user_id = ?
+    AND da.department_role = ?
+    AND da.status = 'Pending Admin Approval'
+    ORDER BY da.submitted_at DESC
+  `;
+
+  db.query(sql, [req.session.user.user_id, departmentRole], (err, rows) => {
+    if (err) {
+      console.error("Fetch department pending approvals error:", err);
+      return res.status(500).json({ message: "Failed to load pending approvals." });
+    }
+
+    res.json(rows);
+  });
+});
+
+app.post("/department/signoff", requireAnyRole(departmentRoles), upload.single("signature"), (req, res) => {
+  const { role_name, signer_name, signoff_status, assessment_id } = req.body;
+
+  if (!role_name || !signer_name) {
+    return res.status(400).json({ message: "Role and signer name are required." });
+  }
+
+  const status = signoff_status === "Signed" ? "Signed" : "Pending";
+  const fileName = req.file ? req.file.originalname : null;
+  const filePath = req.file ? `/uploads/${req.file.filename}` : null;
+
+  const sql = `
+    INSERT INTO sign_offs
+    (
+      assessment_id,
+      role_name,
+      signer_name,
+      signoff_status,
+      signature_file_name,
+      signature_file_path,
+      signed_at,
+      created_by_user_id
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `;
+
+  db.query(
+    sql,
+    [
+      assessment_id || null,
+      role_name,
+      signer_name,
+      status,
+      fileName,
+      filePath,
+      status === "Signed" ? new Date() : null,
+      req.session.user.user_id
+    ],
+    (err) => {
+      if (err) {
+        console.error("Save department signoff error:", err);
+        return res.status(500).json({ message: "Failed to save sign-off." });
+      }
+
+      res.json({ message: "Sign-off saved." });
+    }
+  );
+});
 
 /* INFOSEC ROUTES */
 

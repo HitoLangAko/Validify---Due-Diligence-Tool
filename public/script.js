@@ -22,7 +22,7 @@ const roleLabels = {
 };
 
 const departmentRoles = ["it", "infosec", "management", "dpo", "hr", "compliance"];
-const basicDepartmentRoles = ["it", "management", "dpo", "hr", "compliance"];
+const basicDepartmentRoles = [];
 
 const defaultPageByRole = {
   employee: "add-vendor",
@@ -95,6 +95,7 @@ const allVendorsBody = document.getElementById("allVendorsBody");
 const departmentReviewsBody = document.getElementById("departmentReviewsBody");
 const vendorQueueBody = document.getElementById("vendorQueueBody");
 const pendingApprovalBody = document.getElementById("pendingApprovalBody");
+const departmentAssessmentHeading = document.getElementById("departmentAssessmentHeading");
 
 const infosecAssessmentPage = document.getElementById("infosecAssessmentPage");
 const infosecAssessmentCode = document.getElementById("infosecAssessmentCode");
@@ -243,16 +244,68 @@ function applyRoleLayout() {
   if (roleHelper) {
     if (currentRole === "employee") {
       roleHelper.textContent = "Standard Employee Portal: add vendors and monitor your own submissions.";
-    } else if (currentRole === "infosec") {
-      roleHelper.textContent = "InfoSec Console: assess vendor security profiles and submit them to Admin.";
     } else if (isDepartmentRole()) {
-      roleHelper.textContent = `${label} Console: review vendors submitted by employees.`;
+      roleHelper.textContent = `${label} Console: assess vendor profiles and submit them to Admin.`;
     } else if (currentRole === "admin") {
       roleHelper.textContent = "Admin CISO System: monitor all vendors and department reviews.";
     }
   }
 
+  configureDepartmentUI();
   showPage(defaultPageByRole[currentRole] || "dashboard");
+}
+
+
+function getDefaultPurposeForRole(role = currentRole) {
+  const defaults = {
+    it: "IT Risk Management",
+    infosec: "Information Security",
+    management: "Management Review",
+    dpo: "Data Privacy",
+    hr: "HR Review",
+    compliance: "Compliance Review"
+  };
+
+  return defaults[role] || getRoleLabel(role);
+}
+
+function getAssessmentTitleForRole(role = currentRole) {
+  const titles = {
+    it: "IT Risk Management Assessment",
+    infosec: "Information Security Assessment",
+    management: "Management Assessment",
+    dpo: "Data Privacy Assessment",
+    hr: "HR Assessment",
+    compliance: "Compliance and Resiliency Assessment"
+  };
+
+  return titles[role] || "Vendor Assessment";
+}
+
+function configureDepartmentUI() {
+  if (!isDepartmentRole()) return;
+
+  if (departmentAssessmentHeading) {
+    departmentAssessmentHeading.textContent = getAssessmentTitleForRole();
+  }
+
+  if (signoffForm) {
+    const roleSelect = document.getElementById("signoffRole");
+    if (roleSelect) {
+      roleSelect.value = getRoleLabel(currentRole);
+    }
+  }
+
+  if (infosecPurpose && !infosecPurpose.value) {
+    const defaultPurpose = getDefaultPurposeForRole();
+    const hasOption = Array.from(infosecPurpose.options).some((option) => option.value === defaultPurpose);
+
+    if (!hasOption) {
+      infosecPurpose.add(new Option(defaultPurpose, defaultPurpose));
+    }
+
+    infosecPurpose.value = defaultPurpose;
+  }
 }
 
 function pageIdFromKey(page) {
@@ -308,12 +361,8 @@ async function refreshCurrentPage(_page = getCurrentPage()) {
       await loadEmployeeData();
     }
 
-    if (currentRole === "infosec") {
+    if (isDepartmentRole()) {
       await loadInfoSecData();
-    }
-
-    if (isBasicDepartmentRole()) {
-      await loadDepartmentData();
     }
 
     if (currentRole === "admin") {
@@ -402,7 +451,7 @@ function setupAddVendorForm() {
       }
 
       if (currentRole === "employee") await loadEmployeeData();
-      if (currentRole === "infosec") await loadInfoSecData();
+      if (isDepartmentRole()) await loadInfoSecData();
     } catch (error) {
       alert(error.message);
     }
@@ -413,10 +462,10 @@ function setupAddVendorForm() {
 
 async function loadInfoSecData() {
   const [queue, submissions, pending, questions] = await Promise.all([
-    api("/infosec/queue"),
-    api("/infosec/assessments/mine"),
-    api("/infosec/pending-approval"),
-    api("/infosec/questions")
+    api("/department/queue"),
+    api("/department/assessments/mine"),
+    api("/department/pending-approval"),
+    api("/department/questions")
   ]);
 
   infoSecQueueRows = queue;
@@ -448,7 +497,7 @@ function renderInfoSecDashboard() {
 
   if (!dashboardTableHead || !dashboardTableBody) return;
 
-  if (dashboardTableTitle) dashboardTableTitle.textContent = "Recent InfoSec Vendor Queue";
+  if (dashboardTableTitle) dashboardTableTitle.textContent = `Recent ${getRoleLabel(currentRole)} Vendor Queue`;
 
   dashboardTableHead.innerHTML = `
     <tr>
@@ -472,7 +521,7 @@ function renderInfoSecDashboard() {
     <tr>
       <td><span class="status-pill ${statusClass(vendor.latest_assessment_status || vendor.review_status)}">${escapeHTML(vendor.latest_assessment_code || `V-${vendor.vendor_id}`)}</span></td>
       <td>${escapeHTML(vendor.company_name)}</td>
-      <td>InfoSec</td>
+      <td>${escapeHTML(getRoleLabel(currentRole))}</td>
       <td>${escapeHTML(vendor.submitted_by || "N/A")}</td>
       <td><span class="status-pill ${statusClass(vendor.latest_assessment_status || vendor.review_status)}">${escapeHTML(vendor.latest_assessment_status || vendor.review_status || "Pending")}</span></td>
       <td><button type="button" class="small-action-btn" onclick="startInfoSecAssessment(${vendor.vendor_id})">Assess</button></td>
@@ -495,7 +544,7 @@ function renderInfoSecQueue() {
         <strong>${escapeHTML(vendor.company_name)}</strong><br>
         <small>${escapeHTML(vendor.product_services_offered || "N/A")}</small>
       </td>
-      <td>InfoSec</td>
+      <td>${escapeHTML(getRoleLabel(currentRole))}</td>
       <td>${escapeHTML(vendor.submitted_by || "N/A")}</td>
       <td><span class="status-pill ${statusClass(vendor.latest_assessment_status || vendor.review_status)}">${escapeHTML(vendor.latest_assessment_status || vendor.review_status || "Pending")}</span></td>
       <td>
@@ -509,7 +558,7 @@ function renderInfoSecQueue() {
 }
 
 function renderInfoSecSubmissions() {
-  if (!mySubmissionsHead || !mySubmissionsBody || currentRole !== "infosec") return;
+  if (!mySubmissionsHead || !mySubmissionsBody || !isDepartmentRole()) return;
 
   mySubmissionsHead.innerHTML = `
     <tr>
@@ -522,7 +571,7 @@ function renderInfoSecSubmissions() {
   `;
 
   if (!infoSecSubmissions.length) {
-    mySubmissionsBody.innerHTML = `<tr><td colspan="5" class="empty-cell">No InfoSec submissions yet.</td></tr>`;
+    mySubmissionsBody.innerHTML = `<tr><td colspan="5" class="empty-cell">No assessment submissions yet.</td></tr>`;
     return;
   }
 
@@ -530,7 +579,7 @@ function renderInfoSecSubmissions() {
     <tr>
       <td><strong>${escapeHTML(item.assessment_code || `IA-${item.assessment_id}`)}</strong></td>
       <td>${escapeHTML(item.company_name)}</td>
-      <td>${escapeHTML(item.purpose || "Information Security")}</td>
+      <td>${escapeHTML(item.purpose || getDefaultPurposeForRole())}</td>
       <td><span class="status-pill ${statusClass(item.status)}">${escapeHTML(item.status)}</span></td>
       <td>${escapeHTML(formatDate(item.submitted_at || item.created_at))}</td>
     </tr>
@@ -549,7 +598,7 @@ function renderPendingApproval() {
     <tr>
       <td><strong>${escapeHTML(item.assessment_code || `IA-${item.assessment_id}`)}</strong></td>
       <td>${escapeHTML(item.company_name)}</td>
-      <td>${escapeHTML(item.purpose || "Information Security")}</td>
+      <td>${escapeHTML(item.purpose || getDefaultPurposeForRole())}</td>
       <td><span class="status-pill ${statusClass(item.status)}">${escapeHTML(item.status)}</span></td>
       <td>${escapeHTML(formatDate(item.submitted_at))}</td>
     </tr>
@@ -606,10 +655,15 @@ async function startInfoSecAssessment(vendorId) {
     }
 
     if (infosecAssessmentDate) {
-    infosecAssessmentDate.value = activeInfoSecAssessment.assessment_date || getTodayDateInputValue();
-  }
-  if (infosecVendorSelect) {
+      infosecAssessmentDate.value = getTodayDateInputValue();
+    }
+
+    if (infosecVendorSelect) {
       infosecVendorSelect.value = String(vendorId);
+    }
+
+    if (infosecPurpose) {
+      infosecPurpose.value = infosecPurpose.value || getDefaultPurposeForRole();
     }
 
     if (existingInfoSecAssessment) {
@@ -639,7 +693,7 @@ async function startInfoSecAssessment(vendorId) {
 }
 
 async function loadInfoSecAssessment(assessmentId) {
-  const data = await api(`/infosec/assessments/${assessmentId}`);
+  const data = await api(`/department/assessments/${assessmentId}`);
   activeInfoSecAssessment = data.assessment;
   activeInfoSecAnswers = {};
 
@@ -648,9 +702,9 @@ async function loadInfoSecAssessment(assessmentId) {
   });
 
   if (infosecAssessmentCode) infosecAssessmentCode.value = activeInfoSecAssessment.assessment_code || "";
-  if (infosecAssessmentDate) infosecAssessmentDate.value = formatDateForInput(activeInfoSecAssessment.created_at || activeInfoSecAssessment.submitted_at || new Date());
+  if (infosecAssessmentDate) infosecAssessmentDate.value = activeInfoSecAssessment.assessment_date || getTodayDateInputValue();
   if (infosecVendorSelect) infosecVendorSelect.value = String(activeInfoSecAssessment.vendor_id);
-  if (infosecPurpose) infosecPurpose.value = activeInfoSecAssessment.purpose || "Information Security";
+  if (infosecPurpose) infosecPurpose.value = activeInfoSecAssessment.purpose || getDefaultPurposeForRole();
 
   updateCurrentlyAssessingCard(activeInfoSecAssessment);
   renderInfoSecFormQuestions();
@@ -660,17 +714,26 @@ function renderInfoSecFormQuestions() {
   if (!infosecQuestionsWrap) return;
 
   if (!infoSecQuestions.length) {
-    infosecQuestionsWrap.innerHTML = `<p class="empty-cell">No InfoSec questions found.</p>`;
+    infosecQuestionsWrap.innerHTML = `<p class="empty-cell">No assessment questions found.</p>`;
     return;
   }
+
+  let lastSection = "";
 
   infosecQuestionsWrap.innerHTML = infoSecQuestions.map((question, index) => {
     const saved = activeInfoSecAnswers[index] || {};
     const response = saved.response || "";
     const explanation = saved.explanation || "";
     const artifactName = saved.artifact_name || "";
+    const section = question.section_name || getAssessmentTitleForRole();
+    const sectionHeader = section !== lastSection
+      ? `<div class="is-group-title"><h3>${escapeHTML(section)}</h3><p>Answer the required vendor assessment questions.</p></div>`
+      : "";
+
+    lastSection = section;
 
     return `
+      ${sectionHeader}
       <div class="is-question-card" data-question-index="${index}">
         <h4>${index + 1}. ${escapeHTML(question.question_text)}</h4>
 
@@ -740,6 +803,7 @@ async function submitInfoSecForm(event) {
 
     answers.push({
       question_index: index,
+      section_name: question.section_name || getAssessmentTitleForRole(),
       question_text: question.question_text,
       response,
       explanation,
@@ -749,14 +813,15 @@ async function submitInfoSecForm(event) {
   }
 
   formData.append("answers", JSON.stringify(answers));
+  formData.append("purpose", infosecPurpose?.value || getDefaultPurposeForRole());
 
   try {
-    await api(`/infosec/assessments/${activeInfoSecAssessment.assessment_id}/submit`, {
+    await api(`/department/assessments/${activeInfoSecAssessment.assessment_id}/submit`, {
       method: "POST",
       body: formData
     });
 
-    showToast("InfoSec assessment submitted to Admin.");
+    showToast(`${getRoleLabel(currentRole)} assessment submitted to Admin.`);
     await loadInfoSecData();
     showPage("pending-approval");
   } catch (error) {
@@ -774,7 +839,7 @@ async function quickRejectInfoSec(vendorId) {
       method: "PATCH",
       body: JSON.stringify({
         review_status: "Rejected",
-        comments: comment || "Rejected by InfoSec."
+        comments: comment || `Rejected by ${getRoleLabel(currentRole)}.`
       })
     });
 
@@ -788,7 +853,7 @@ async function quickRejectInfoSec(vendorId) {
 if (createInfoSecAssessmentBtn) {
   createInfoSecAssessmentBtn.addEventListener("click", async () => {
     const vendorId = infosecVendorSelect?.value || "";
-    const purpose = infosecPurpose?.value || "";
+    const purpose = infosecPurpose?.value || getDefaultPurposeForRole();
     const assessmentDate = infosecAssessmentDate?.value || "";
 
     if (!vendorId) {
@@ -807,7 +872,7 @@ if (createInfoSecAssessmentBtn) {
     }
 
     try {
-      const assessment = await api("/infosec/assessments/start", {
+      const assessment = await api("/department/assessments/start", {
         method: "POST",
         body: JSON.stringify({
           vendor_id: vendorId,
@@ -1065,7 +1130,7 @@ async function submitSignoff(event) {
   event.preventDefault();
 
   const formData = new FormData();
-  formData.append("role_name", document.getElementById("signoffRole").value);
+  formData.append("role_name", document.getElementById("signoffRole").value || getRoleLabel(currentRole));
   formData.append("signer_name", document.getElementById("signoffName").value.trim());
   formData.append("signoff_status", document.querySelector("input[name='approvalDecision']:checked")?.value || "Pending");
 
@@ -1074,7 +1139,7 @@ async function submitSignoff(event) {
   }
 
   try {
-    await api("/infosec/signoff", {
+    await api("/department/signoff", {
       method: "POST",
       body: formData
     });

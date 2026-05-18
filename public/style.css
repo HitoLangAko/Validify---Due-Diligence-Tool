@@ -2505,3 +2505,22 @@ body[data-role="employee"] .top-actions .employee-only {
 #vendorAssessmentPage .currently-assessing-card .muted {
   margin-bottom: 0;
 }
+
+/* ALL DEPARTMENT USERS USE INFOSEC-STYLE WORKFLOW */
+body[data-role="it"] .nav-menu,
+body[data-role="infosec"] .nav-menu,
+body[data-role="management"] .nav-menu,
+body[data-role="dpo"] .nav-menu,
+body[data-role="hr"] .nav-menu,
+body[data-role="compliance"] .nav-menu {
+  gap: 7px;
+}
+
+body[data-role="it"] .nav-link,
+body[data-role="infosec"] .nav-link,
+body[data-role="management"] .nav-link,
+body[data-role="dpo"] .nav-link,
+body[data-role="hr"] .nav-link,
+body[data-role="compliance"] .nav-link {
+  min-height: 44px;
+}
