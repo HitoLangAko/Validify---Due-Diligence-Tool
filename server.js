@@ -2494,15 +2494,6 @@ function createSignoffSheet(workbook, signoffs) {
 app.get("/admin/export-excel", requireRole("admin"), async (req, res) => {
   try {
     const selectedAssessmentId = req.query.assessment_id || null;
-    const assessmentParams = [];
-    let assessmentWhere = "";
-    let assessmentLimit = "LIMIT 1";
-
-    if (requestedAssessmentId && Number.isInteger(requestedAssessmentId)) {
-      assessmentWhere = "WHERE va.assessment_id = ?";
-      assessmentParams.push(requestedAssessmentId);
-      assessmentLimit = "";
-    }
 
     const assessmentWhere = selectedAssessmentId
       ? "WHERE va.assessment_id = ?"
@@ -2511,6 +2502,9 @@ app.get("/admin/export-excel", requireRole("admin"), async (req, res) => {
     const assessmentParams = selectedAssessmentId
       ? [selectedAssessmentId]
       : [];
+
+    const workbook = new ExcelJS.Workbook();
+
 
     const assessments = await runQuery(
       `
