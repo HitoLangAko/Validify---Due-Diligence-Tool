@@ -109,24 +109,6 @@ const departmentQuestionGroups = {
       ]
     }
   ],
-  employee: [
-    {
-    section_name: "Vendor Information",
-    questions: [
-      "Type of service/s deployment model would this vendor implement for the company? Describe briefly.",
-      "Vendor's clients.",
-      "Vendor's local offices.",
-      "Vendor's HQ location.",
-      "Number of years the vendor has been in the business.",
-      "Please describe your ability and capacity to perform the outsourced activities effectively and reliably.",
-      "What is your support turnaround time?",
-      "Vendor's clients and actual performance, such as certifications, accreditations, performance rating, and industries your clients belong to.",
-      "To whom are issues escalated? Please provide name, email address, and contact number.",
-      "Have there been any instances where you were unable to deliver services as per the agreed terms? If yes, please provide details and explanations.",
-      "Please provide the cost of this particular engagement."
-    ]
-    }
-  ],
   management: [
     {
       section_name: "Consumer",
@@ -1543,8 +1525,22 @@ function buildExportRowsForRole(role, answers) {
   });
 }
 
+function buildVendorInformationExportRows() {
+  return vendorInformationQuestions.map((question, index) => ({
+    department_role: "employee",
+    section_name: "Vendor Information",
+    question_index: index,
+    question_text: question,
+    response: "",
+    explanation: "",
+    artifact_name: "",
+    artifact_path: ""
+  }));
+}
+
 function buildSupplierDDFRows(answers) {
   return [
+    ...buildVendorInformationExportRows(),
     ...buildExportRowsForRole("management", answers),
     ...buildExportRowsForRole("it", answers),
     ...buildExportRowsForRole("compliance", answers),
@@ -1553,12 +1549,12 @@ function buildSupplierDDFRows(answers) {
   ];
 }
 
-function createSupplierDDFSheet(workbook, assessments = [], answers = []) {
+function createSupplierDDFSheet(workbook, assessment = {}, answers = []) {
   const sheet = workbook.addWorksheet("Vendor DDF");
 
-  const selectedAssessment = Array.isArray(assessments)
-    ? assessments[0] || {}
-    : assessments || {};
+  const selectedAssessment = Array.isArray(assessment)
+    ? assessment[0] || {}
+    : assessment || {};
 
   sheet.pageSetup = {
     paperSize: 9,
@@ -1593,16 +1589,12 @@ function createSupplierDDFSheet(workbook, assessments = [], answers = []) {
   sheet.getRow(1).height = 24;
 
   const infoRows = [
-    ["Assessment ID:", selectedAssessment.assessment_code || `VA-${selectedAssessment.assessment_id || ""}`],
-    ["Assessment Date:", formatExcelDate(selectedAssessment.assessment_date)],
     ["Company Name:", selectedAssessment.company_name || ""],
     ["Company Website:", selectedAssessment.company_website || ""],
     ["Product/ Services Offered to <company>:", selectedAssessment.product_services_offered || ""],
     ["Purpose: For Accreditation/Re-accreditation, New contract or Renewal:", selectedAssessment.purpose || ""],
-    [
-      "Contact Person Name / Email Address / Phone Number:",
-      `${selectedAssessment.contact_person_name || ""} ${selectedAssessment.contact_email || ""} ${selectedAssessment.contact_phone || ""}`.trim()
-    ]
+    ["Contact Person Name / Email Address / Phone Number", `${selectedAssessment.contact_person_name || ""} ${selectedAssessment.contact_email || ""} ${selectedAssessment.contact_phone || ""}`.trim()],
+    ["Date of Assessment:", formatExcelDate(assessment.assessment_date)]
   ];
 
   let row = 2;
@@ -1961,27 +1953,32 @@ app.get("/admin/export-excel", requireRole("admin"), async (req, res) => {
       assessmentLimit = "";
     }
 
-    const assessments = await runQuery(`
-      SELECT
-        va.assessment_id,
-        va.assessment_code,
-        va.vendor_id,
-        va.purpose,
-        va.assessment_date,
-        va.overall_status,
-        va.created_at,
-        v.company_name,
-        v.company_website,
-        v.product_services_offered,
-        v.contact_person_name,
-        v.contact_email,
-        v.contact_phone,
-        u.full_name AS created_by
-      FROM vendor_assessments va
-      JOIN vendors v ON va.vendor_id = v.vendor_id
-      LEFT JOIN users u ON va.created_by_user_id = u.user_id
-      ORDER BY va.created_at DESC
-    `);
+    const assessments = await runQuery(
+      `
+        SELECT
+          va.assessment_id,
+          va.assessment_code,
+          va.vendor_id,
+          va.purpose,
+          va.assessment_date,
+          va.overall_status,
+          va.created_at,
+          v.company_name,
+          v.company_website,
+          v.product_services_offered,
+          v.contact_person_name,
+          v.contact_email,
+          v.contact_phone,
+          u.full_name AS created_by
+        FROM vendor_assessments va
+        JOIN vendors v ON va.vendor_id = v.vendor_id
+        LEFT JOIN users u ON va.created_by_user_id = u.user_id
+        ${assessmentWhere}
+        ORDER BY va.created_at DESC
+        ${assessmentLimit}
+      `,
+      assessmentParams
+    );
 
     const selectedAssessment = assessments[0] || {};
     const selectedAssessmentId = selectedAssessment.assessment_id || requestedAssessmentId || null;
