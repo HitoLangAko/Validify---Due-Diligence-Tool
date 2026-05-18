@@ -3511,3 +3511,211 @@ body[data-role="compliance"] #vendorAssessmentPage .vendor-assessment-card {
   line-height: 1;
   text-shadow: 0 4px 7px rgba(15, 23, 42, 0.25);
 }
+
+/* Professional Sign-off Authorization Page */
+#signoffPage .signoff-wrapper,
+#signoffPage .content-card {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 42px 48px;
+  background: #ffffff;
+  border: 1px solid #dbe4f0;
+  border-radius: 22px;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.08);
+}
+
+#signoffPage .signoff-wrapper::before,
+#signoffPage .content-card::before {
+  content: "\f573";
+  font-family: "Font Awesome 6 Free";
+  font-weight: 900;
+  width: 62px;
+  height: 62px;
+  margin: 0 auto 16px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #2f66e8, #14b8a6);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  box-shadow: 0 10px 20px rgba(47, 102, 232, 0.22);
+}
+
+#signoffPage h2,
+#signoffPage .signoff-wrapper h2,
+#signoffPage .content-card h2 {
+  margin: 0;
+  text-align: center;
+  font-size: 30px;
+  font-weight: 900;
+  color: #0f172a;
+  letter-spacing: -0.03em;
+}
+
+#signoffPage .signoff-wrapper > p,
+#signoffPage .content-card > p {
+  max-width: 580px;
+  margin: 10px auto 34px;
+  text-align: center;
+  color: #64748b;
+  font-size: 15px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+#signoffPage form {
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+#signoffPage .field-group {
+  margin-bottom: 22px;
+}
+
+#signoffPage .field-group label {
+  display: block;
+  margin-bottom: 9px;
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+#signoffPage input[type="text"],
+#signoffPage select {
+  width: 100%;
+  min-height: 58px;
+  border: 1px solid #cfd9e8;
+  border-radius: 14px;
+  background: #fbfdff;
+  color: #0f172a;
+  padding: 0 18px;
+  font-size: 15px;
+  font-weight: 600;
+  outline: none;
+  transition: 0.2s ease;
+}
+
+#signoffPage input[type="text"]:focus,
+#signoffPage select:focus {
+  border-color: #2f66e8;
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(47, 102, 232, 0.12);
+}
+
+#signoffPage .radio-row,
+#signoffPage .approval-options {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  padding: 12px 4px 2px;
+}
+
+#signoffPage input[type="radio"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #2f66e8;
+}
+
+#signoffPage input[type="radio"] + label,
+#signoffPage .radio-row label,
+#signoffPage .approval-options label {
+  margin: 0;
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+#signoffPage .signature-upload-btn {
+  width: 100%;
+  min-height: 64px;
+  border: 1px dashed #8fa3bf;
+  border-radius: 16px;
+  background: #f1f5f9;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-weight: 900;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+#signoffPage .signature-upload-btn:hover {
+  background: #e8eef8;
+  border-color: #2f66e8;
+  color: #2f66e8;
+}
+
+#signoffPage .signature-upload-btn i {
+  font-size: 16px;
+}
+
+#signoffPage .button-row,
+#signoffPage .form-actions,
+#signoffPage .signoff-actions {
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+  margin-top: 46px;
+}
+
+#signoffPage .cancel-btn,
+#signoffPage button[type="button"] {
+  min-width: 170px;
+  height: 58px;
+  border: none;
+  border-radius: 14px;
+  background: #2f66e8;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(47, 102, 232, 0.18);
+}
+
+#signoffPage .submit-signoff-btn,
+#signoffPage button[type="submit"] {
+  min-width: 190px;
+  height: 58px;
+  border: none;
+  border-radius: 14px;
+  background: #10b981;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(16, 185, 129, 0.2);
+}
+
+#signoffPage .cancel-btn:hover,
+#signoffPage button[type="button"]:hover {
+  background: #2456c7;
+}
+
+#signoffPage .submit-signoff-btn:hover,
+#signoffPage button[type="submit"]:hover {
+  background: #059669;
+}
+
+@media (max-width: 700px) {
+  #signoffPage .signoff-wrapper,
+  #signoffPage .content-card {
+    padding: 30px 20px;
+  }
+
+  #signoffPage .button-row,
+  #signoffPage .form-actions,
+  #signoffPage .signoff-actions {
+    flex-direction: column;
+  }
+
+  #signoffPage .cancel-btn,
+  #signoffPage .submit-signoff-btn,
+  #signoffPage button[type="button"],
+  #signoffPage button[type="submit"] {
+    width: 100%;
+  }
+}
