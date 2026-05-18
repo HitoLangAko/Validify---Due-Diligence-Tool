@@ -40,6 +40,7 @@ const customPageLabels = {
   "add-vendor": "Insert Vendor",
   "my-submissions": "My Submissions",
   "vendor-queue": "Vendor Queue",
+  "vendor-assessment": "Vendor Assessment",
   "pending-approval": "Pending Approval",
   signoff: "Form for Sign-off",
   "infosec-assessment": "Information Security Assessment",
@@ -106,14 +107,13 @@ const currentlyAssessingServices = document.getElementById("currentlyAssessingSe
 const infosecForm = document.getElementById("infosecForm");
 const infosecQuestionsWrap = document.getElementById("infosecQuestionsWrap");
 const cancelInfoSecAssessmentBtn = document.getElementById("cancelInfoSecAssessmentBtn");
+const createInfoSecAssessmentBtn = document.getElementById("createInfoSecAssessmentBtn");
+const vendorAssessmentNavBtn = document.getElementById("vendorAssessmentNavBtn");
 
 const signoffForm = document.getElementById("signoffForm");
 const signatureFile = document.getElementById("signatureFile");
 const signatureFileName = document.getElementById("signatureFileName");
 const cancelSignoffBtn = document.getElementById("cancelSignoffBtn");
-
-const createInfoSecAssessmentBtn = document.getElementById("createInfoSecAssessmentBtn");
-const vendorAssessmentNavBtn = document.getElementById("vendorAssessmentNavBtn");
 
 function getRoleLabel(role) {
   return roleLabels[role] || role || "User";
@@ -148,85 +148,6 @@ function formatDate(value) {
   });
 }
 
-function formatAssessmentDate(value = new Date()) {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-
-  return date.toLocaleDateString("en-GB");
-}
-
-function formatAssessmentDate(value = new Date()) {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-
-  return date.toLocaleDateString("en-GB");
-}
-
-if (createInfoSecAssessmentBtn) {
-  createInfoSecAssessmentBtn.addEventListener("click", async () => {
-    const vendorId = infosecVendorSelect?.value || "";
-    const purpose = infosecPurpose?.value || "";
-
-    if (!vendorId) {
-      alert("Please select a vendor first.");
-      return;
-    }
-
-    if (!purpose) {
-      alert("Please select a purpose first.");
-      return;
-    }
-
-    try {
-      const assessment = await api("/infosec/assessments/start", {
-        method: "POST",
-        body: JSON.stringify({
-          vendor_id: vendorId,
-          purpose,
-          force_new: true
-        })
-      });
-
-      activeInfoSecAssessment = assessment;
-      activeInfoSecAnswers = {};
-
-      if (infosecAssessmentCode) {
-        infosecAssessmentCode.value = assessment.assessment_code || "";
-      }
-
-      if (infosecAssessmentDate) {
-        infosecAssessmentDate.value = formatAssessmentDate(activeInfoSecAssessment.created_at);
-      }
-
-      await loadInfoSecData();
-
-      if (infosecVendorSelect) {
-        infosecVendorSelect.value = String(vendorId);
-      }
-
-      if (infosecPurpose) {
-        infosecPurpose.value = purpose;
-      }
-
-      if (existingInfoSecAssessment) {
-        existingInfoSecAssessment.value = String(assessment.assessment_id);
-      }
-
-      await loadInfoSecAssessment(assessment.assessment_id);
-
-      showToast("Assessment created.");
-    } catch (error) {
-      alert(error.message);
-    }
-  });
-}
-
 function formatDateForInput(value) {
   const date = value ? new Date(value) : new Date();
 
@@ -235,6 +156,15 @@ function formatDateForInput(value) {
   }
 
   return date.toISOString().slice(0, 10);
+}
+
+function getTodayDateInputValue() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 }
 
 function statusClass(value) {
@@ -364,12 +294,7 @@ function showPage(page) {
   setActiveNav(page);
   showOnlyPage(page);
 
-  const customLabels = {
-    "vendor-assessment": "Vendor Assessment",
-    "infosec-assessment": "Information Security Assessment"
-  };
-
-  const label = customLabels[page] || pageLabel(page);
+  const label = pageLabel(page);
 
   if (pageTitle) pageTitle.textContent = label;
   if (breadcrumb) breadcrumb.textContent = `${getRoleLabel(currentRole)} / ${label}`;
@@ -677,13 +602,13 @@ async function startInfoSecAssessment(vendorId) {
 
     if (infosecAssessmentCode) {
       infosecAssessmentCode.value = "";
+      infosecAssessmentCode.placeholder = "Auto-generated ID";
     }
 
     if (infosecAssessmentDate) {
-      infosecAssessmentDate.value = "";
-    }
-
-    if (infosecVendorSelect) {
+    infosecAssessmentDate.value = activeInfoSecAssessment.assessment_date || getTodayDateInputValue();
+  }
+  if (infosecVendorSelect) {
       infosecVendorSelect.value = String(vendorId);
     }
 
@@ -691,10 +616,18 @@ async function startInfoSecAssessment(vendorId) {
       existingInfoSecAssessment.value = "";
     }
 
+    const selectedVendor = infoSecQueueRows.find((vendor) => String(vendor.vendor_id) === String(vendorId));
+    if (selectedVendor) {
+      updateCurrentlyAssessingCard({
+        company_name: selectedVendor.company_name,
+        product_services_offered: selectedVendor.product_services_offered
+      });
+    }
+
     if (infosecQuestionsWrap) {
       infosecQuestionsWrap.innerHTML = `
         <p class="empty-cell">
-          Select a vendor and click Create Assessment to begin.
+          Select a vendor, choose a date and purpose, then click Create Assessment to begin.
         </p>
       `;
     }
@@ -717,7 +650,7 @@ async function loadInfoSecAssessment(assessmentId) {
   if (infosecAssessmentCode) infosecAssessmentCode.value = activeInfoSecAssessment.assessment_code || "";
   if (infosecAssessmentDate) infosecAssessmentDate.value = formatDateForInput(activeInfoSecAssessment.created_at || activeInfoSecAssessment.submitted_at || new Date());
   if (infosecVendorSelect) infosecVendorSelect.value = String(activeInfoSecAssessment.vendor_id);
-  if (infosecPurpose) infosecPurpose.value = activeInfoSecAssessment.purpose || "Info Sec";
+  if (infosecPurpose) infosecPurpose.value = activeInfoSecAssessment.purpose || "Information Security";
 
   updateCurrentlyAssessingCard(activeInfoSecAssessment);
   renderInfoSecFormQuestions();
@@ -816,7 +749,6 @@ async function submitInfoSecForm(event) {
   }
 
   formData.append("answers", JSON.stringify(answers));
-  formData.append("purpose", infosecPurpose?.value || "Info Sec");
 
   try {
     await api(`/infosec/assessments/${activeInfoSecAssessment.assessment_id}/submit`, {
@@ -851,6 +783,71 @@ async function quickRejectInfoSec(vendorId) {
   } catch (error) {
     alert(error.message);
   }
+}
+
+if (createInfoSecAssessmentBtn) {
+  createInfoSecAssessmentBtn.addEventListener("click", async () => {
+    const vendorId = infosecVendorSelect?.value || "";
+    const purpose = infosecPurpose?.value || "";
+    const assessmentDate = infosecAssessmentDate?.value || "";
+
+    if (!vendorId) {
+      alert("Please select a vendor first.");
+      return;
+    }
+
+    if (!assessmentDate) {
+      alert("Please select an assessment date.");
+      return;
+    }
+
+    if (!purpose) {
+      alert("Please select a purpose first.");
+      return;
+    }
+
+    try {
+      const assessment = await api("/infosec/assessments/start", {
+        method: "POST",
+        body: JSON.stringify({
+          vendor_id: vendorId,
+          purpose,
+          assessment_date: assessmentDate,
+          force_new: true
+        })
+      });
+
+      activeInfoSecAssessment = assessment;
+      activeInfoSecAnswers = {};
+
+      if (infosecAssessmentCode) {
+        infosecAssessmentCode.value = assessment.assessment_code || "";
+      }
+
+      if (infosecAssessmentDate) {
+        infosecAssessmentDate.value = assessment.assessment_date || assessmentDate;
+      }
+
+      await loadInfoSecData();
+
+      if (infosecVendorSelect) {
+        infosecVendorSelect.value = String(vendorId);
+      }
+
+      if (infosecPurpose) {
+        infosecPurpose.value = purpose;
+      }
+
+      if (existingInfoSecAssessment) {
+        existingInfoSecAssessment.value = String(assessment.assessment_id);
+      }
+
+      await loadInfoSecAssessment(assessment.assessment_id);
+      showToast("Assessment created.");
+    } catch (error) {
+      alert(error.message);
+    }
+  });
 }
 
 /* BASIC DEPARTMENTS */
@@ -1155,7 +1152,7 @@ if (existingInfoSecAssessment) {
     if (!id) return;
 
     await loadInfoSecAssessment(id);
-    showPage("infosec-assessment");
+    showPage("vendor-assessment");
   });
 }
 

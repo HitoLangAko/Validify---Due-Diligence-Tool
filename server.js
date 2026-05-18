@@ -282,6 +282,7 @@ async function initDatabase() {
       vendor_id INT NOT NULL,
       submitted_by_user_id INT NOT NULL,
       purpose VARCHAR(150) DEFAULT 'Information Security',
+      assessment_date DATE NULL,
       status ENUM('Draft', 'Pending Admin Approval', 'Approved', 'Rejected') DEFAULT 'Draft',
       admin_comment TEXT NULL,
       submitted_at TIMESTAMP NULL,
@@ -290,6 +291,8 @@ async function initDatabase() {
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     )
   `);
+
+  await addColumnIfMissing("infosec_assessments", "assessment_date", "DATE NULL");
 
   await runQuery(`
     CREATE TABLE IF NOT EXISTS infosec_answers (
@@ -718,7 +721,7 @@ app.get("/infosec/queue", requireRole("infosec"), (req, res) => {
 });
 
 app.post("/infosec/assessments/start", requireRole("infosec"), (req, res) => {
-  const { vendor_id, purpose, force_new } = req.body;
+  const { vendor_id, purpose, assessment_date, force_new } = req.body;
 
   if (!vendor_id) {
     return res.status(400).json({ message: "Vendor is required." });
@@ -731,14 +734,20 @@ app.post("/infosec/assessments/start", requireRole("infosec"), (req, res) => {
         vendor_id,
         submitted_by_user_id,
         purpose,
+        assessment_date,
         status
       )
-      VALUES (?, ?, ?, 'Draft')
+      VALUES (?, ?, ?, ?, 'Draft')
     `;
 
     db.query(
       insertSql,
-      [vendor_id, req.session.user.user_id, purpose || "Accreditation"],
+      [
+        vendor_id,
+        req.session.user.user_id,
+        purpose || "Accreditation",
+        assessment_date || null
+      ],
       (insertErr, result) => {
         if (insertErr) {
           console.error("Start assessment error:", insertErr);
@@ -766,6 +775,7 @@ app.post("/infosec/assessments/start", requireRole("infosec"), (req, res) => {
             vendor_id,
             submitted_by_user_id: req.session.user.user_id,
             purpose: purpose || "Accreditation",
+            assessment_date: assessment_date || null,
             status: "Draft",
             created_at: new Date().toISOString()
           });
@@ -810,6 +820,7 @@ app.get("/infosec/assessments/mine", requireRole("infosec"), (req, res) => {
       ia.assessment_code,
       ia.vendor_id,
       ia.purpose,
+      ia.assessment_date,
       ia.status,
       ia.submitted_at,
       ia.created_at,
@@ -981,13 +992,12 @@ app.post("/infosec/assessments/:assessment_id/submit", requireRole("infosec"), u
 
       const submitSql = `
         UPDATE infosec_assessments
-        SET purpose = ?,
-            status = 'Pending Admin Approval',
+        SET status = 'Pending Admin Approval',
             submitted_at = CURRENT_TIMESTAMP
         WHERE assessment_id = ?
       `;
 
-      db.query(submitSql, [req.body.purpose || "Info Sec", assessment_id], (submitErr) => {
+      db.query(submitSql, [assessment_id], (submitErr) => {
         if (submitErr) {
           console.error("Submit infosec assessment error:", submitErr);
           return res.status(500).json({ message: "Failed to submit InfoSec assessment." });
@@ -1028,6 +1038,7 @@ app.get("/infosec/pending-approval", requireRole("infosec"), (req, res) => {
       ia.assessment_code,
       ia.vendor_id,
       ia.purpose,
+      ia.assessment_date,
       ia.status,
       ia.submitted_at,
       ia.admin_comment,
