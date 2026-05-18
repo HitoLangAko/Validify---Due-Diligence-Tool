@@ -1143,11 +1143,6 @@ app.post("/department/signoff", requireDepartment, upload.single("signature"), a
   const filePath = req.file ? `/uploads/${req.file.filename}` : null;
 
   try {
-    /*
-      If the frontend did not send assessment IDs,
-      automatically use the latest assessment for this department
-      that is already submitted or in progress.
-    */
     if (!assessment_id || !department_assessment_id) {
       const latestRows = await runQuery(
         `
@@ -1155,14 +1150,13 @@ app.post("/department/signoff", requireDepartment, upload.single("signature"), a
             da.department_assessment_id,
             da.assessment_id
           FROM department_assessments da
-          JOIN vendor_assessments va ON da.assessment_id = va.assessment_id
           WHERE da.department_role = ?
-          AND da.status IN ('Pending Admin Approval', 'Draft', 'Pending')
           ORDER BY
             CASE
               WHEN da.status = 'Pending Admin Approval' THEN 1
               WHEN da.status = 'Draft' THEN 2
-              ELSE 3
+              WHEN da.status = 'Pending' THEN 3
+              ELSE 4
             END,
             da.updated_at DESC,
             da.created_at DESC
@@ -1173,7 +1167,7 @@ app.post("/department/signoff", requireDepartment, upload.single("signature"), a
 
       if (latestRows.length === 0) {
         return res.status(400).json({
-          message: "No assessment found for sign-off. Please open or submit a vendor assessment first."
+          message: "No assessment found for sign-off. Please open a vendor assessment first."
         });
       }
 
