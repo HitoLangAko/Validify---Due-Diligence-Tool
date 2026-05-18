@@ -1403,6 +1403,53 @@ function normalizeSectionName(value) {
     .toLowerCase();
 }
 
+function makeAnswerLookup(answers) {
+  const lookup = {};
+
+  (answers || []).forEach((answer) => {
+    const role = normalizeSectionName(answer.department_role);
+    const indexKey = `${role}|${Number(answer.question_index)}`;
+    lookup[indexKey] = answer;
+
+    const textKey = `${role}|${normalizeSectionName(answer.section_name)}|${normalizeSectionName(answer.question_text)}`;
+    lookup[textKey] = answer;
+  });
+
+  return lookup;
+}
+
+function buildExportRowsForRole(role, answers) {
+  const questions = flattenQuestionsForRole(role);
+  const lookup = makeAnswerLookup(answers);
+
+  return questions.map((question) => {
+    const byIndex = lookup[`${normalizeSectionName(role)}|${Number(question.question_index)}`];
+    const byText = lookup[`${normalizeSectionName(role)}|${normalizeSectionName(question.section_name)}|${normalizeSectionName(question.question_text)}`];
+    const saved = byIndex || byText || {};
+
+    return {
+      department_role: role,
+      section_name: question.section_name,
+      question_index: question.question_index,
+      question_text: question.question_text,
+      response: saved.response || "",
+      explanation: saved.explanation || "",
+      artifact_name: saved.artifact_name || "",
+      artifact_path: saved.artifact_path || ""
+    };
+  });
+}
+
+function buildSupplierDDFRows(answers) {
+  return [
+    ...buildExportRowsForRole("management", answers),
+    ...buildExportRowsForRole("it", answers),
+    ...buildExportRowsForRole("compliance", answers),
+    ...buildExportRowsForRole("dpo", answers),
+    ...buildExportRowsForRole("hr", answers)
+  ];
+}
+
 function createSupplierDDFSheet(workbook, assessment, answers) {
   const sheet = workbook.addWorksheet("Supplier DDF");
 
@@ -1496,6 +1543,8 @@ function createSupplierDDFSheet(workbook, assessment, answers) {
 
   row++;
 
+  const allRows = buildSupplierDDFRows(answers);
+
   const sectionOrder = [
     "Consumer",
     "IT Risk Management",
@@ -1506,7 +1555,7 @@ function createSupplierDDFSheet(workbook, assessment, answers) {
   ];
 
   sectionOrder.forEach((sectionName) => {
-    const sectionRows = answers.filter((item) => normalizeSectionName(item.section_name) === normalizeSectionName(sectionName));
+    const sectionRows = allRows.filter((item) => normalizeSectionName(item.section_name) === normalizeSectionName(sectionName));
 
     if (!sectionRows.length) return;
 
@@ -1573,10 +1622,7 @@ function createInformationSecuritySheet(workbook, assessment, answers) {
     { width: 24 }
   ];
 
-  const infoSecRows = answers.filter((item) => {
-    return normalizeSectionName(item.department_role) === "infosec" ||
-      normalizeSectionName(item.section_name) === "information security";
-  });
+  const infoSecRows = buildExportRowsForRole("infosec", answers);
 
   sheet.mergeCells("A1:D1");
   sheet.getCell("A1").value = `Product/ Services Offered to <Company>: ${assessment.product_services_offered || ""}`;
@@ -1605,17 +1651,6 @@ function createInformationSecuritySheet(workbook, assessment, answers) {
   let row = 3;
   let lastSection = "";
 
-  if (!infoSecRows.length) {
-    sheet.mergeCells(`A${row}:D${row}`);
-    sheet.getCell(`A${row}`).value = "No Information Security answers found for this assessment.";
-    setCellStyle(sheet.getCell(`A${row}`), {
-      font: { italic: true, size: 9 },
-      alignment: { horizontal: "center", vertical: "middle", wrapText: true },
-      border: thinBorder()
-    });
-    return;
-  }
-
   infoSecRows.forEach((item) => {
     const sectionName = item.section_name || "Information Security";
 
@@ -1637,7 +1672,7 @@ function createInformationSecuritySheet(workbook, assessment, answers) {
     sheet.getCell(`B${row}`).value = item.response || "";
     sheet.getCell(`C${row}`).value = item.explanation || "";
     sheet.getCell(`D${row}`).value = item.artifact_name || "";
-    sheet.getRow(row).height = 44;
+    sheet.getRow(row).height = 42;
 
     ["A", "B", "C", "D"].forEach((col) => {
       setCellStyle(sheet.getCell(`${col}${row}`), {
