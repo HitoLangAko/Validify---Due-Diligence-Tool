@@ -48,12 +48,26 @@ const assessmentCodePrefixes = {
   compliance: "CP"
 };
 
+const consumerQuestions = [
+  "Do you have a mechanism to address clients' complaints against an authorized agent or representative? Please provide an overview of your complaint handling procedures.",
+  "How do you ensure that client complaints are addressed quickly and adequately?",
+  "Do you have a team or individuals dedicated to managing consumer complaints? If so, lay out the position and qualifications.",
+  "What is a typical time frame for acknowledging and addressing a customer complaint?",
+  "How do you track and document customer complaints? Do you use any specific software or system for this purpose?",
+  "Are there any typical remedies or compensation measures in place to handle customer complaints? If so, please provide information.",
+  "How do you communicate with customers about the complaint resolution process? Do you provide updates and progress reports?",
+  "Do you solicit feedback from clients regarding their satisfaction with the complaint resolution process? If so, how do you collect and utilize feedback to improve your services?",
+  "How do you ensure that complaints are handled in accordance with applicable laws, regulations, and industry standards?",
+  "Are you familiar with and implement the complaint management rules established by regulatory bodies, such as the Bangko Sentral ng Pilipinas? Please provide details."
+];
+
 const resiliencyQuestions = [
-  "What is the specific alternate site documented in the BCP?",
-  "Have you conducted BCP testing?",
-  "Provide the approved Business Continuity Plan.",
-  "Provide results of the most recent IT DRP and BCP tests.",
-  "Are there action plans in place for corrective actions discovered during the test?"
+  "Is there a specified alternate site documented in the BCP?",
+  "Provide the current and approved IT Disaster Recovery and Business Continuity Plan, including resumption strategies, disaster communication or reporting procedures, prioritization arrangements, data backup and recovery arrangements, cloud synchronization procedures, Recovery Time Objective, and Minimum Time Period of Disruption. Otherwise, provide the table of contents and sign-off sheet of the approved IT DR and BCP document.",
+  "Provide the approved Business Continuity Plan effective date within one year. Otherwise, provide the table of contents of the approved BCP document including the sign-off sheet of the approvals.",
+  "Provide the results of the most recent IT DRP and BCP tests.",
+  "Are there action plans in place to handle any corrective actions discovered during the test?",
+  "Please provide a copy of the latest test results."
 ];
 
 const departmentQuestionGroups = {
@@ -80,81 +94,82 @@ const departmentQuestionGroups = {
       ]
     }
   ],
-  compliance: [
-    {
-      section_name: "Compliance",
-      questions: [
-        "Enumerate the top shareholders and officers of the vendor as indicated in the General Information Sheet.",
-        "Will the service require the transfer of company data to another country?",
-        "Do you have policies and procedures to comply with AML and CFT regulations?",
-        "Will the service to be provided involve AML-related transactions?",
-        "Is there a specific alternate site documented in the BCP?",
-      ]
-    },
-    {
-      section_name: "Resiliency",
-      questions: resiliencyQuestions
-    }
-  ],
   management: [
     {
       section_name: "Consumer",
-      questions: [
-        "Do you have a mechanism to address client complaints against an authorized agent or representative? Please provide an overview of your complaint handling.",
-        "How do you ensure that client complaints are addressed quickly and adequately?",
-        "Do you have a team or individuals dedicated to managing consumer complaints? If so, lay out the position and qualifications.",
-        "What is a typical time frame for acknowledging and addressing a customer complaint?",
-        "How do you track and document customer complaints?",
-      ]
+      questions: consumerQuestions
     },
     {
       section_name: "Resiliency",
       questions: resiliencyQuestions
-    }
-  ],
-  dpo: [
-    {
-      section_name: "Data Privacy",
-      questions: [
-        "Does the vendor process personal data on behalf of the company?",
-        "Does the vendor have a documented privacy policy or data protection policy?",
-        "Does the vendor identify the types of personal data being collected, stored, or processed?",
-        "Does the vendor apply access controls to personal data?",
-        "Does the vendor have procedures for data retention and disposal?",
-        "Does the vendor have a process for handling data subject requests?",
-        "Does the vendor have procedures for reporting privacy incidents or data breaches?",
-        "Does the vendor require confidentiality agreements for employees handling personal data?",
-        "Does the vendor conduct privacy awareness or data protection training?",
-        "Does the vendor use third parties or subprocessors that may access company or customer personal data?"
-      ]
-    }
-  ],
-  hr: [
-    {
-      section_name: "Human Resources",
-      questions: [
-        "Does the vendor perform employee background checks where applicable?",
-        "Does the vendor require employees to sign confidentiality or non-disclosure agreements?",
-        "Does the vendor conduct employee onboarding related to company policies and security expectations?",
-        "Does the vendor provide employee awareness training for data protection and professional conduct?",
-        "Does the vendor have a disciplinary process for policy violations?",
-        "Does the vendor have procedures for employee offboarding and access removal?",
-        "Does the vendor maintain records of employee training and policy acknowledgement?",
-        "Does the vendor comply with labor and employment requirements applicable to its services?"
-      ]
     }
   ],
   it: [
     {
       section_name: "IT Risk Management",
       questions: [
-        "Does your organization include IT-related functions such as hardware, software, cloud, maintenance, or other IT resources?",
-        "If yes, please provide detailed scope or involvement and outsourced IT functions.",
-        "Do you have an IT Risk Management organizational framework or program?",
-        "Do you monitor and report Key Risk Indicators and other IT Risk Metrics?",
-        "Do you use any third-party IT vendors, contractors, or subcontractors?",
-        "Please share documented agreements such as MSA, SLA, NDA, and BCP.",
-        "Will the service be supplied via private cloud, public cloud, hybrid cloud, or community cloud?",
+        "Does your organization's specific involvement with the company include IT-related functions such as hardware, software, cloud, maintenance, and other IT resources or assets? If yes, please provide detailed scope, involvement, and outsourced IT functions.",
+        "Do you have an IT Risk Management organizational framework and/or program? If so, please describe and/or provide an organizational chart. Please share any current ITRM reports.",
+        "Do you monitor and report Key Risk Indicators and other IT Risk Metrics? If no but applicable, provide compensating controls on how your organization mitigates existing and potential IT risk incidents. If yes, describe and provide the latest report.",
+        "Do you use any third-party IT vendors, contractors, or subcontractors? If so, do you have a clear policy and procedures in place for using third-party vendors? Please describe relevant contractors and subcontractors.",
+        "Please share the following documented agreements, approved or drafted: Master Service Agreement including Service Level Agreement, Incident Handling, Change Management, Problem Management, Event Management, Reporting Process, Non-Disclosure Agreement, and Business Continuity Plan.",
+        "Please provide a copy of your organization's latest SOC or SSAE-16 SOC Report, if applicable.",
+        "Have your officers been subjected to regulator investigations, warnings, or penalties? If yes, please describe.",
+        "Do you have an Internal Audit Function? If no, please explain how and who performs the internal audit function.",
+        "Please provide any latest Internal and External Audit Report and the status of open findings, if any."
+      ]
+    }
+  ],
+  compliance: [
+    {
+      section_name: "Compliance",
+      questions: [
+        "Enumerate the top shareholders and officers of the vendor as indicated in the General Information Sheet. Kindly provide a copy of the General Information Sheet.",
+        "Will the service be supplied via private cloud, public cloud, hybrid cloud, or community cloud? Please describe the deployment of the cloud service.",
+        "Will the service require the transfer of company data to another country? If so, where will company data be stored, and what physical and logical controls will be in place to preserve and ensure its availability?",
+        "What are the vendor's duties for availability, data backup, incident response, and recovery? Are these duties specified in the contract?",
+        "Do you have policies and procedures to comply with AML and CFT regulations?",
+        "Will the service to be provided involve AML-related transactions, such as account opening, remittance, or asset custody? If yes, what AML-related controls are implemented by the vendor? If employees will handle company transactions, processes, or systems, do these employees have AML trainings? Kindly submit proof of compliance such as AML training materials and attendance sheet.",
+        "For the vendor-provided contract or company standard contract, are the following included in the contract or service level agreement: acknowledgment of National Privacy Commission supervisory authority, access of internal and external auditors, corrective measures for NPC or audit findings, cancellation rights if required by NPC, mandatory notification of system changes, and remedies in the event of change in ownership, assignment, attachment of assets, insolvency, or receivership of the vendor?"
+      ]
+    }
+  ],
+  dpo: [
+    {
+      section_name: "Data Privacy",
+      questions: [
+        "Is your company registered at the National Privacy Commission? Please provide the NPC Registration Certificate.",
+        "Provide the name and contact details of the organization's Data Protection Officer or any equivalent officer in charge of overall compliance with applicable data protection laws and standards.",
+        "Who is your organization's Data Privacy Officer and what are their contact details?",
+        "Is your company certified with ISO 27701?",
+        "Describe in detail all the data that would be processed or stored under this engagement.",
+        "Will the company's data, whether PII or non-PII, be stored in cloud? If yes, indicate the geolocation of the cloud server and the physical and technical controls employed in the storage facility.",
+        "Provide the organization's privacy policies or manual. Otherwise, provide the table of contents of the organization's policies and manual.",
+        "Describe the security controls employed to protect data at rest and data in transit. Include the type of encryption whenever applicable.",
+        "How will the company be notified if an information security breach involving company data occurred?",
+        "Provide the organization's formal Incident Response Plan supporting this activity.",
+        "Are your employees periodically trained on data protection laws and standards? Provide attestation or proof of regular training conducted.",
+        "How does your organization securely destroy or remove data when the need arises?",
+        "Where does the data or information reside, or where is it transitioning through, at a given point in time?",
+        "Provide a data flow diagram.",
+        "Who has the legal ownership of the data transmitted and managed through the vendor or partner? Provide the signed contract, agreement, or any document governing the engagement.",
+        "Are your privacy policies and data protection standards aligned with international standards? Provide a copy of certification if applicable, such as TUV or ISO.",
+        "Does the company have history or track record of not upholding confidentiality of information?",
+        "Does any of your employees and/or affiliates have any history or track record of not upholding confidentiality of information?",
+        "Does your company agree to be subjected to background checks to ensure that the company has no history or track record of not upholding confidentiality of information?",
+        "Does your company agree to be subjected to independent assessments for purposes of ensuring the Technology Service Provider's control environment and security mechanisms are effective?"
+      ]
+    }
+  ],
+  hr: [
+    {
+      section_name: "Environmental and Social Risk Management",
+      questions: [
+        "Do you have any outstanding legal, regulatory, or environmental issues that could impact your ability to supply goods or services to us? If yes, provide a description of the issue and the status or action plan. Please provide Environmental Compliance Certification and BCP test result where applicable.",
+        "Do you have policies in place to ensure compliance with all relevant laws and regulations, including labor, environmental, and health and safety laws? If yes, provide a description of the policy and a copy of Occupational Health and Safety policies, related government-mandated reports, Sustainability Policy, or any equivalent policy.",
+        "Do you have policies in place to prevent discrimination, harassment, and abuse of employees? If yes, provide a description and a copy of the policy or guideline.",
+        "Do you have systems and/or policies in place to prevent fraud, corruption, forced labor, child labor, and other unethical practices? If yes, provide a description and a copy of the policy or guideline.",
+        "Do you track and measure your sustainability performance, such as UN SDG impact or ESG indicators? Do you have a sustainability report? If yes, provide a copy of your latest sustainability report."
       ]
     }
   ]

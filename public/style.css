@@ -2548,12 +2548,3 @@ body[data-role="employee"] #vendorQueuePage {
   color: #1e293b;
   border-color: #94a3b8;
 }
-
-/* HIDE DEPARTMENT-ONLY SECTIONS ON EMPLOYEE VENDOR ASSESSMENT */
-
-body[data-role="employee"] #vendorAssessmentPage .existing-assessment-card,
-body[data-role="employee"] #vendorAssessmentPage .currently-assessing-card,
-body[data-role="employee"] #vendorAssessmentPage .infosec-form-card,
-body[data-role="employee"] #vendorAssessmentPage .department-form-card {
-  display: none !important;
-}
