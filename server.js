@@ -1508,6 +1508,52 @@ async function getAdminAssessmentBundle(assessmentId = null) {
     [assessment.assessment_id]
   );
 
+
+  const departmentAnswerRows = await runQuery(
+    `
+      SELECT
+        da.assessment_id,
+        da.department_role,
+        ans.answer_id,
+        ans.department_assessment_id,
+        ans.section_name,
+        ans.question_index,
+        ans.question_text,
+        ans.response,
+        ans.explanation,
+        ans.artifact_path,
+        ans.artifact_name,
+        ans.created_at,
+        ans.updated_at
+      FROM department_answers ans
+      JOIN department_assessments da
+        ON ans.department_assessment_id = da.department_assessment_id
+      WHERE da.assessment_id = ?
+      ORDER BY
+        CASE ans.section_name
+          WHEN 'Vendor Information' THEN 1
+          WHEN 'Consumer' THEN 2
+          WHEN 'IT Risk Management' THEN 3
+          WHEN 'Compliance' THEN 4
+          WHEN 'Resiliency' THEN 5
+          WHEN 'Data Privacy' THEN 6
+          WHEN 'Environmental and Social Risk Management' THEN 7
+          WHEN 'Information Security' THEN 8
+          ELSE 9
+        END,
+        ans.question_index ASC
+    `,
+    [assessment.assessment_id]
+  );
+
+  const vendorInformationAnswers = departmentAnswerRows
+    .filter((answer) => answer.department_role === "employee" || answer.section_name === "Vendor Information")
+    .map((answer) => ({
+      ...answer,
+      vendor_response: answer.response === "TEXT_ANSWER" ? answer.explanation || "" : answer.response || "",
+      company_comment: ""
+    }));
+
   const rawSignoffs = await runQuery(
     `
       SELECT
@@ -1577,10 +1623,19 @@ async function getAdminAssessmentBundle(assessmentId = null) {
     }
   });
 
+  const departmentAssessmentsWithAnswers = departmentAssessments.map((dept) => ({
+    ...dept,
+    answers: departmentAnswerRows.filter(
+      (answer) => Number(answer.department_assessment_id) === Number(dept.department_assessment_id)
+    )
+  }));
+
   return {
     ...assessment,
     company_comment: commentParts.join("\n") || null,
-    department_assessments: departmentAssessments,
+    vendor_information_answers: vendorInformationAnswers,
+    department_answers: departmentAnswerRows,
+    department_assessments: departmentAssessmentsWithAnswers,
     department_signoffs: departmentSignoffs
   };
 }

@@ -2832,6 +2832,10 @@ html body[data-role="employee"] #vendorAssessmentPage #submitDepartmentFormBtn {
   }
 }
 
+
+
+
+/* ADMIN ASSESSMENT REVIEW: REMOVE RIGHT COMMENT/NOTES PANEL */
 #assessmentReviewPage .review-grid {
   grid-template-columns: 1fr !important;
 }
@@ -2840,93 +2844,6 @@ html body[data-role="employee"] #vendorAssessmentPage #submitDepartmentFormBtn {
   width: 100%;
 }
 
-/* Hide create vendor assessment card for department users */
-body[data-role="it"] #vendorAssessmentPage .vendor-assessment-card,
-body[data-role="infosec"] #vendorAssessmentPage .vendor-assessment-card,
-body[data-role="management"] #vendorAssessmentPage .vendor-assessment-card,
-body[data-role="dpo"] #vendorAssessmentPage .vendor-assessment-card,
-body[data-role="hr"] #vendorAssessmentPage .vendor-assessment-card,
-body[data-role="compliance"] #vendorAssessmentPage .vendor-assessment-card {
-  display: none !important;
-}
-
-/* Hide Insert Vendor page if department users somehow access it */
-body[data-role="it"] #addVendorPage,
-body[data-role="infosec"] #addVendorPage,
-body[data-role="management"] #addVendorPage,
-body[data-role="dpo"] #addVendorPage,
-body[data-role="hr"] #addVendorPage,
-body[data-role="compliance"] #addVendorPage {
-  display: none !important;
-}
-
-/* Professional Vendor Being Assessed Card */
-#vendorAssessmentPage .currently-assessing-card {
-  background: linear-gradient(135deg, #f8fbff 0%, #eef6ff 100%);
-  border: 1px solid #cfe0f6;
-  border-left: 6px solid #2f66e8;
-  border-radius: 16px;
-  padding: 24px 28px !important;
-  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
-}
-
-#vendorAssessmentPage .currently-assessing-card h3 {
-  margin: 0 0 18px;
-  font-size: 15px;
-  font-weight: 900;
-  color: #64748b;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-#vendorAssessmentPage .currently-assessing-card p {
-  margin: 0;
-}
-
-#vendorAssessmentPage .currently-assessing-card p:first-of-type {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 8px;
-}
-
-#vendorAssessmentPage .currently-assessing-card p:first-of-type::before {
-  content: "\f1ad";
-  font-family: "Font Awesome 6 Free";
-  font-weight: 900;
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
-  background: #2f66e8;
-  color: #ffffff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  box-shadow: 0 6px 14px rgba(47, 102, 232, 0.25);
-}
-
-#vendorAssessmentPage .currently-assessing-card strong {
-  display: block;
-  font-size: 26px;
-  font-weight: 900;
-  color: #10182f;
-  line-height: 1.2;
-}
-
-#vendorAssessmentPage .currently-assessing-card .muted {
-  margin-left: 54px;
-  font-size: 15px;
-  color: #475569;
-  font-weight: 600;
-  line-height: 1.5;
-}
-
-#vendorAssessmentPage .currently-assessing-card .muted::before {
-  content: "Service Scope: ";
-  font-weight: 900;
-  color: #1e3a8a;
-}
 
 /* Admin Assessment Review status */
 .status-ready {
@@ -2939,4 +2856,87 @@ body[data-role="compliance"] #addVendorPage {
   background: #fed7aa !important;
   color: #7c2d12 !important;
   border-color: #fb923c !important;
+}
+
+/* Admin Due Diligence Complete Form Review */
+.admin-ddf-review-wrap {
+  margin-top: 18px;
+}
+
+.admin-ddf-section {
+  margin-bottom: 28px;
+  border: 1px solid #dfe5ee;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.admin-ddf-section-title {
+  background: #e5e7eb;
+  color: #111827;
+  padding: 12px 16px;
+  font-size: 15px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid #cbd5e1;
+}
+
+.admin-ddf-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.admin-ddf-table th {
+  background: #f8fafc;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 900;
+  padding: 12px;
+  border-bottom: 1px solid #dfe5ee;
+}
+
+.admin-ddf-table td {
+  vertical-align: top;
+  padding: 14px 12px;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.admin-ddf-table tr:last-child td {
+  border-bottom: none;
+}
+
+.admin-ddf-question {
+  width: 42%;
+  font-weight: 900;
+  color: #111827;
+}
+
+.admin-ddf-response {
+  font-weight: 800;
+  color: #0f172a;
+  white-space: pre-wrap;
+}
+
+.admin-ddf-explanation {
+  margin-top: 8px;
+  color: #475569;
+  font-weight: 600;
+  white-space: pre-wrap;
+}
+
+.review-file-link {
+  color: #2563eb;
+  font-weight: 900;
+  text-decoration: underline;
+}
+
+#assessmentReviewPage .review-grid {
+  grid-template-columns: 1fr !important;
+}
+
+#assessmentReviewPage .review-panel {
+  width: 100%;
 }

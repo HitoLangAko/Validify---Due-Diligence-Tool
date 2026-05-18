@@ -173,6 +173,217 @@ function statusClass(value) {
   return `status-${String(value || "Pending").toLowerCase().replaceAll(" ", "-")}`;
 }
 
+
+const ddfSectionOrder = [
+  "Vendor Information",
+  "Consumer",
+  "IT Risk Management",
+  "Compliance",
+  "Resiliency",
+  "Data Privacy",
+  "Environmental and Social Risk Management"
+];
+
+function getDDFReviewContainer() {
+  let container = document.getElementById("assessmentReviewDDFBody");
+
+  if (!container) {
+    const tab = document.getElementById("tabDDFContent");
+    if (!tab) return null;
+
+    tab.innerHTML = `<div id="assessmentReviewDDFBody" class="admin-ddf-review-wrap"></div>`;
+    return document.getElementById("assessmentReviewDDFBody");
+  }
+
+  if (container.tagName && container.tagName.toLowerCase() === "tbody") {
+    const tableWrap = container.closest(".table-wrap");
+
+    if (tableWrap) {
+      tableWrap.outerHTML = `<div id="assessmentReviewDDFBody" class="admin-ddf-review-wrap"></div>`;
+      return document.getElementById("assessmentReviewDDFBody");
+    }
+  }
+
+  return container;
+}
+
+function renderArtifactLink(item) {
+  if (!item) return "-";
+
+  const artifactPath =
+    item.artifact_path ||
+    item.file_path ||
+    item.supporting_document_path ||
+    "";
+
+  const artifactName =
+    item.artifact_name ||
+    item.file_name ||
+    item.supporting_document_name ||
+    "Open file";
+
+  if (!artifactPath) return "-";
+
+  return `
+    <a href="${escapeHTML(artifactPath)}" target="_blank" class="review-file-link">
+      ${escapeHTML(artifactName)}
+    </a>
+  `;
+}
+
+function getDDFDisplayResponse(answer) {
+  const response = String(answer?.response || "").trim();
+
+  if (["TEXT_ANSWER", "DATE_ANSWER"].includes(response)) {
+    return answer.explanation || answer.vendor_response || "-";
+  }
+
+  if (response === "FILE_ANSWER") {
+    return "File submitted";
+  }
+
+  return response || answer.vendor_response || answer.explanation || "-";
+}
+
+function normalizeDDFAnswers(assessment) {
+  const normalized = [];
+
+  const vendorInfoAnswers = assessment?.vendor_information_answers || [];
+
+  vendorInfoAnswers.forEach((answer) => {
+    normalized.push({
+      section_name: "Vendor Information",
+      question_text: answer.question_text || "",
+      response: answer.vendor_response || answer.answer_text || answer.response || "",
+      explanation: answer.company_comment || answer.explanation || "",
+      artifact_path: answer.artifact_path || answer.file_path || answer.supporting_document_path || "",
+      artifact_name: answer.artifact_name || answer.file_name || answer.supporting_document_name || ""
+    });
+  });
+
+  const departmentAnswers = assessment?.department_answers?.length
+    ? assessment.department_answers
+    : (assessment?.department_assessments || []).flatMap((dept) => {
+        return (dept.answers || []).map((answer) => ({
+          ...answer,
+          department_role: dept.department_role
+        }));
+      });
+
+  departmentAnswers.forEach((answer) => {
+    if (!ddfSectionOrder.includes(answer.section_name)) return;
+
+    normalized.push({
+      section_name: answer.section_name,
+      question_text: answer.question_text || "",
+      response: answer.response || "",
+      explanation: answer.explanation || "",
+      artifact_path: answer.artifact_path || "",
+      artifact_name: answer.artifact_name || ""
+    });
+  });
+
+  return normalized;
+}
+
+function renderAdminDueDiligenceForm(assessment) {
+  const container = getDDFReviewContainer();
+  if (!container) return;
+
+  if (!assessment) {
+    container.innerHTML = `<p class="empty-cell">Select an assessment to view Due Diligence Form responses.</p>`;
+    return;
+  }
+
+  const answers = normalizeDDFAnswers(assessment);
+  let html = "";
+
+  ddfSectionOrder.forEach((sectionName) => {
+    const sectionAnswers = answers.filter((answer) => answer.section_name === sectionName);
+
+    html += `
+      <div class="admin-ddf-section">
+        <div class="admin-ddf-section-title">${escapeHTML(sectionName)}</div>
+
+        <div class="table-wrap">
+          <table class="admin-ddf-table">
+            <thead>
+              <tr>
+                <th>Question</th>
+                <th>Vendor / Department Response</th>
+                <th>Supporting Document</th>
+              </tr>
+            </thead>
+            <tbody>
+    `;
+
+    if (!sectionAnswers.length) {
+      html += `
+        <tr>
+          <td colspan="3" class="empty-cell">No submitted answers yet.</td>
+        </tr>
+      `;
+    } else {
+      html += sectionAnswers.map((answer, index) => {
+        const displayResponse = getDDFDisplayResponse(answer);
+        const rawResponse = String(answer.response || "").trim();
+        const showExplanation =
+          answer.explanation &&
+          !["TEXT_ANSWER", "DATE_ANSWER"].includes(rawResponse) &&
+          answer.explanation !== displayResponse;
+
+        return `
+          <tr>
+            <td class="admin-ddf-question">
+              ${index + 1}. ${escapeHTML(answer.question_text || "Question not available.")}
+            </td>
+
+            <td>
+              <div class="admin-ddf-response">
+                ${escapeHTML(displayResponse)}
+              </div>
+
+              ${
+                showExplanation
+                  ? `<div class="admin-ddf-explanation">
+                      <strong>Explanation:</strong> ${escapeHTML(answer.explanation)}
+                    </div>`
+                  : ""
+              }
+            </td>
+
+            <td>
+              ${renderArtifactLink(answer)}
+            </td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    html += `
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  });
+
+  container.innerHTML = html;
+}
+
+function getAssessmentReviewDisplayStatus(assessment) {
+  const departments = assessment?.department_assessments || [];
+  const requiredDepartments = ["management", "it", "compliance", "dpo", "hr", "infosec"];
+
+  const completedDepartments = requiredDepartments.filter((role) => {
+    const dept = departments.find((item) => item.department_role === role);
+
+    return dept && ["Pending Admin Approval", "Approved", "Completed"].includes(dept.department_status);
+  });
+
+  return completedDepartments.length === requiredDepartments.length ? "Ready" : "Pending";
+}
+
 function showToast(message) {
   if (!toast) return;
   toast.textContent = message;
@@ -299,17 +510,11 @@ function pageLabel(page) {
 }
 
 function showPage(page) {
-  if (isDepartmentRole() && page === "add-vendor") {
-    page = "dashboard";
-  }
-
   setActiveNav(page);
   showOnlyPage(page);
-
   const label = pageLabel(page);
   if (pageTitle) pageTitle.textContent = label;
   if (breadcrumb) breadcrumb.textContent = `${getRoleLabel(currentRole)} / ${label}`;
-
   refreshCurrentPage(page);
 }
 
@@ -1054,21 +1259,7 @@ function populateAssessmentReviewTabs() {
     return;
   }
 
-  const ddfDepts = (selectedReviewAssessment.department_assessments || []).filter((dept) => dept.department_role !== "infosec");
-  if (document.getElementById("assessmentReviewDDFBody")) {
-    if (!ddfDepts.length) {
-      document.getElementById("assessmentReviewDDFBody").innerHTML = `<tr><td colspan="4" class="empty-cell">No DDF responses available.</td></tr>`;
-    } else {
-      document.getElementById("assessmentReviewDDFBody").innerHTML = ddfDepts.map((dept) => `
-        <tr>
-          <td>${escapeHTML(getRoleLabel(dept.department_role))}</td>
-          <td><span class="status-pill ${statusClass(dept.department_status)}">${escapeHTML(dept.department_status || "Pending")}</span></td>
-          <td>${escapeHTML(dept.submitted_by || "—")}</td>
-          <td>${escapeHTML(formatDate(dept.submitted_at))}</td>
-        </tr>
-      `).join("");
-    }
-  }
+  renderAdminDueDiligenceForm(selectedReviewAssessment);
 
   const infosecDept = (selectedReviewAssessment.department_assessments || []).find((dept) => dept.department_role === "infosec");
   if (document.getElementById("infosecReviewDetailsWrap")) {
@@ -1114,30 +1305,13 @@ function populateAssessmentReviewTabs() {
   }
 }
 
-function getAssessmentReviewDisplayStatus(assessment) {
-  const departments = assessment?.department_assessments || [];
-
-  const requiredDepartments = ["management", "it", "compliance", "dpo", "hr", "infosec"];
-
-  const completedDepartments = requiredDepartments.filter((role) => {
-    const dept = departments.find((item) => item.department_role === role);
-    return dept && ["Pending Admin Approval", "Approved", "Completed"].includes(dept.department_status);
-  });
-
-  if (completedDepartments.length === requiredDepartments.length) {
-    return "Ready";
-  }
-
-  return "Pending";
-}
-
 function updateAssessmentReviewDetails() {
   if (!selectedReviewAssessment) {
-    if (assessmentReviewCode) assessmentReviewCode.textContent = "—";
-    if (assessmentReviewVendorName) assessmentReviewVendorName.textContent = "—";
-    if (assessmentReviewPurpose) assessmentReviewPurpose.textContent = "—";
-    if (assessmentReviewDate) assessmentReviewDate.textContent = "—";
-    if (assessmentReviewServices) assessmentReviewServices.textContent = "—";
+    if (assessmentReviewCode) assessmentReviewCode.textContent = "-";
+    if (assessmentReviewVendorName) assessmentReviewVendorName.textContent = "-";
+    if (assessmentReviewPurpose) assessmentReviewPurpose.textContent = "-";
+    if (assessmentReviewDate) assessmentReviewDate.textContent = "-";
+    if (assessmentReviewServices) assessmentReviewServices.textContent = "-";
 
     if (assessmentReviewStatus) {
       assessmentReviewStatus.textContent = "Pending";
@@ -1151,15 +1325,15 @@ function updateAssessmentReviewDetails() {
   const displayStatus = getAssessmentReviewDisplayStatus(selectedReviewAssessment);
 
   if (assessmentReviewCode) {
-    assessmentReviewCode.textContent = selectedReviewAssessment.assessment_code || "—";
+    assessmentReviewCode.textContent = selectedReviewAssessment.assessment_code || "-";
   }
 
   if (assessmentReviewVendorName) {
-    assessmentReviewVendorName.textContent = selectedReviewAssessment.company_name || "—";
+    assessmentReviewVendorName.textContent = selectedReviewAssessment.company_name || "-";
   }
 
   if (assessmentReviewPurpose) {
-    assessmentReviewPurpose.textContent = selectedReviewAssessment.purpose || "—";
+    assessmentReviewPurpose.textContent = selectedReviewAssessment.purpose || "-";
   }
 
   if (assessmentReviewDate) {
@@ -1167,7 +1341,7 @@ function updateAssessmentReviewDetails() {
   }
 
   if (assessmentReviewServices) {
-    assessmentReviewServices.textContent = selectedReviewAssessment.product_services_offered || "—";
+    assessmentReviewServices.textContent = selectedReviewAssessment.product_services_offered || "-";
   }
 
   if (assessmentReviewStatus) {
