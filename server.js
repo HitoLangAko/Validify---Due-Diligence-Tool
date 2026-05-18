@@ -49,6 +49,20 @@ const assessmentCodePrefixes = {
   compliance: "CP"
 };
 
+const vendorInformationQuestions = [
+  "Type of service/s deployment model would this vendor implement for the company? Describe briefly.",
+  "Vendor's clients.",
+  "Vendor's local offices.",
+  "Vendor's HQ location.",
+  "Number of years the vendor has been in the business.",
+  "Please describe your ability and capacity to perform the outsourced activities effectively and reliably.",
+  "What is your support turnaround time?",
+  "Vendor's clients and actual performance, such as certifications, accreditations, performance rating, and industries your clients belong to.",
+  "To whom are issues escalated? Please provide name, email address, and contact number.",
+  "Have there been any instances where you were unable to deliver services as per the agreed terms? If yes, please provide details and explanations.",
+  "Please provide the cost of this particular engagement."
+];
+
 const consumerQuestions = [
   "Do you have a mechanism to address clients' complaints against an authorized agent or representative? Please provide an overview of your complaint handling procedures.",
   "How do you ensure that client complaints are addressed quickly and adequately?",
@@ -93,6 +107,24 @@ const departmentQuestionGroups = {
         "Do you have a security incident response team and procedures in place?",
         "Do you have an Incident Response Plan for ransomware, phishing, and data breach scenarios?"
       ]
+    }
+  ],
+  employee: [
+    {
+    section_name: "Vendor Information",
+    questions: [
+      "Type of service/s deployment model would this vendor implement for the company? Describe briefly.",
+      "Vendor's clients.",
+      "Vendor's local offices.",
+      "Vendor's HQ location.",
+      "Number of years the vendor has been in the business.",
+      "Please describe your ability and capacity to perform the outsourced activities effectively and reliably.",
+      "What is your support turnaround time?",
+      "Vendor's clients and actual performance, such as certifications, accreditations, performance rating, and industries your clients belong to.",
+      "To whom are issues escalated? Please provide name, email address, and contact number.",
+      "Have there been any instances where you were unable to deliver services as per the agreed terms? If yes, please provide details and explanations.",
+      "Please provide the cost of this particular engagement."
+    ]
     }
   ],
   management: [
@@ -1625,6 +1657,7 @@ function createSupplierDDFSheet(workbook, assessments = [], answers = []) {
   const allRows = buildSupplierDDFRows(answers);
 
   const sectionOrder = [
+    "Vendor Information",
     "Consumer",
     "IT Risk Management",
     "Compliance",
