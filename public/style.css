@@ -2940,3 +2940,130 @@ html body[data-role="employee"] #vendorAssessmentPage #submitDepartmentFormBtn {
 #assessmentReviewPage .review-panel {
   width: 100%;
 }
+
+/* Professional card styling for all main content cards */
+.content-card,
+.vendor-assessment-card,
+.existing-assessment-card,
+.currently-assessing-card,
+.infosec-form-card,
+.assessment-review-card,
+.review-panel,
+.summary-card,
+.signoff-wrapper {
+  background: #ffffff;
+  border: 1px solid #dbe4f0;
+  border-radius: 18px;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+}
+
+/* Better spacing inside cards */
+.content-card {
+  padding: 26px 30px;
+}
+
+/* Cleaner card titles */
+.content-card h3,
+.vendor-assessment-card h3,
+.existing-assessment-card h3,
+.currently-assessing-card h3,
+.infosec-form-card h3,
+.assessment-review-card h3 {
+  font-size: 22px;
+  font-weight: 900;
+  color: #0f172a;
+  margin-bottom: 18px;
+}
+
+/* Professional Vendor Being Assessed Card */
+#vendorAssessmentPage .currently-assessing-card {
+  background: linear-gradient(135deg, #f8fbff 0%, #eef6ff 100%);
+  border: 1px solid #cfe0f6;
+  border-left: 6px solid #2f66e8;
+  border-radius: 18px;
+  padding: 28px 32px !important;
+  min-height: auto !important;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
+}
+
+#vendorAssessmentPage .currently-assessing-card h3 {
+  margin: 0 0 18px;
+  font-size: 14px;
+  font-weight: 900;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+#vendorAssessmentPage .currently-assessing-card p {
+  margin: 0;
+}
+
+#vendorAssessmentPage .currently-assessing-card p:first-of-type {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 8px;
+}
+
+#vendorAssessmentPage .currently-assessing-card p:first-of-type::before {
+  content: "\f1ad";
+  font-family: "Font Awesome 6 Free";
+  font-weight: 900;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: #2f66e8;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  box-shadow: 0 6px 14px rgba(47, 102, 232, 0.25);
+}
+
+#vendorAssessmentPage .currently-assessing-card strong {
+  display: block;
+  font-size: 25px;
+  font-weight: 900;
+  color: #0f172a;
+  line-height: 1.2;
+}
+
+#vendorAssessmentPage .currently-assessing-card .muted {
+  margin-left: 58px;
+  font-size: 15px;
+  color: #475569;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+#vendorAssessmentPage .currently-assessing-card .muted::before {
+  content: "Service Scope: ";
+  font-weight: 900;
+  color: #1e3a8a;
+}
+
+/* Better empty/default message appearance */
+.empty-cell {
+  color: #64748b;
+  font-weight: 700;
+  background: #f8fafc;
+  border-radius: 12px;
+}
+
+/* Softer inputs inside cards */
+.content-card input,
+.content-card select,
+.content-card textarea {
+  border-radius: 12px;
+  border: 1px solid #cfd9e8;
+  background: #fbfdff;
+}
+
+.content-card input:focus,
+.content-card select:focus,
+.content-card textarea:focus {
+  border-color: #2f66e8;
+  box-shadow: 0 0 0 3px rgba(47, 102, 232, 0.12);
+}
