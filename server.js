@@ -1477,8 +1477,12 @@ function buildSupplierDDFRows(answers) {
   ];
 }
 
-function createSupplierDDFSheet(workbook, assessment, answers) {
-  const sheet = workbook.addWorksheet("Supplier DDF");
+function createSupplierDDFSheet(workbook, assessments = [], answers = []) {
+  const sheet = workbook.addWorksheet("Vendor DDF");
+
+  const selectedAssessment = Array.isArray(assessments)
+    ? assessments[0] || {}
+    : assessments || {};
 
   sheet.pageSetup = {
     paperSize: 9,
@@ -1503,7 +1507,7 @@ function createSupplierDDFSheet(workbook, assessment, answers) {
   const sectionFill = "FFD9D9D9";
 
   sheet.mergeCells("A1:C1");
-  sheet.getCell("A1").value = `${assessment.company_name || "<Company>"} - DUE DILIGENCE FORM`;
+  sheet.getCell("A1").value = `${selectedAssessment.company_name || "<Company>"} - DUE DILIGENCE FORM`;
   setCellStyle(sheet.getCell("A1"), {
     font: { bold: true, size: 11, color: { argb: "FFFFFFFF" } },
     alignment: { horizontal: "center", vertical: "middle", wrapText: true },
