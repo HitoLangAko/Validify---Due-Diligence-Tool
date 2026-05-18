@@ -84,16 +84,11 @@ const departmentQuestionGroups = {
     {
       section_name: "Compliance",
       questions: [
-        "Does the vendor comply with applicable laws, regulations, and industry standards?",
-        "Does the vendor maintain documented compliance policies and procedures?",
-        "Has the vendor identified the regulatory requirements applicable to its services?",
-        "Does the vendor conduct periodic compliance reviews or audits?",
-        "Does the vendor have a process for reporting compliance violations or incidents?",
-        "Does the vendor train employees on compliance requirements?",
-        "Does the vendor maintain proper records for compliance monitoring?",
-        "Does the vendor include compliance obligations in contracts or service agreements?",
-        "Does the vendor have procedures for handling regulatory changes?",
-        "Does the vendor have any previous or current compliance violations, sanctions, or unresolved findings?"
+        "Enumerate the top shareholders and officers of the vendor as indicated in the General Information Sheet.",
+        "Will the service require the transfer of company data to another country?",
+        "Do you have policies and procedures to comply with AML and CFT regulations?",
+        "Will the service to be provided involve AML-related transactions?",
+        "Is there a specific alternate site documented in the BCP?",
       ]
     },
     {
