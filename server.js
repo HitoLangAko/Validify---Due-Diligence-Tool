@@ -1129,27 +1129,77 @@ app.get("/department/pending-approval", requireDepartment, async (req, res) => {
 });
 
 app.post("/department/signoff", requireDepartment, upload.single("signature"), async (req, res) => {
-  const { signer_name, signoff_status, assessment_id, department_assessment_id } = req.body;
+  const { signer_name, signoff_status } = req.body;
+  let { assessment_id, department_assessment_id } = req.body;
 
   if (!signer_name) {
     return res.status(400).json({ message: "Signer name is required." });
   }
 
-  const roleName = roleLabels[req.session.user.role] || req.session.user.role;
+  const departmentRole = req.session.user.role;
+  const roleName = roleLabels[departmentRole] || departmentRole;
   const status = signoff_status === "Signed" ? "Signed" : "Pending";
   const fileName = req.file ? req.file.originalname : null;
   const filePath = req.file ? `/uploads/${req.file.filename}` : null;
 
   try {
+    /*
+      If the frontend did not send assessment IDs,
+      automatically use the latest assessment for this department
+      that is already submitted or in progress.
+    */
+    if (!assessment_id || !department_assessment_id) {
+      const latestRows = await runQuery(
+        `
+          SELECT
+            da.department_assessment_id,
+            da.assessment_id
+          FROM department_assessments da
+          JOIN vendor_assessments va ON da.assessment_id = va.assessment_id
+          WHERE da.department_role = ?
+          AND da.status IN ('Pending Admin Approval', 'Draft', 'Pending')
+          ORDER BY
+            CASE
+              WHEN da.status = 'Pending Admin Approval' THEN 1
+              WHEN da.status = 'Draft' THEN 2
+              ELSE 3
+            END,
+            da.updated_at DESC,
+            da.created_at DESC
+          LIMIT 1
+        `,
+        [departmentRole]
+      );
+
+      if (latestRows.length === 0) {
+        return res.status(400).json({
+          message: "No assessment found for sign-off. Please open or submit a vendor assessment first."
+        });
+      }
+
+      assessment_id = latestRows[0].assessment_id;
+      department_assessment_id = latestRows[0].department_assessment_id;
+    }
+
     await runQuery(
       `
         INSERT INTO sign_offs
-        (assessment_id, department_assessment_id, role_name, signer_name, signoff_status, signature_file_name, signature_file_path, signed_at, created_by_user_id)
+        (
+          assessment_id,
+          department_assessment_id,
+          role_name,
+          signer_name,
+          signoff_status,
+          signature_file_name,
+          signature_file_path,
+          signed_at,
+          created_by_user_id
+        )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       [
-        assessment_id || null,
-        department_assessment_id || null,
+        assessment_id,
+        department_assessment_id,
         roleName,
         signer_name,
         status,
