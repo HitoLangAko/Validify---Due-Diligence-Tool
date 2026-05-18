@@ -7,6 +7,7 @@ const path = require("path");
 const fs = require("fs");
 const multer = require("multer");
 require("dotenv").config();
+const ExcelJS = require("exceljs");
 
 const app = express();
 
@@ -1310,6 +1311,456 @@ app.get("/admin/department-assessments", requireRole("admin"), async (_req, res)
   } catch (error) {
     console.error("Fetch admin department assessments error:", error);
     res.status(500).json({ message: "Failed to load department assessments." });
+  }
+});
+
+/* ADMIN EXCEL EXPORT */
+
+function styleHeaderRow(row) {
+  row.eachCell((cell) => {
+    cell.font = {
+      bold: true,
+      color: { argb: "FFFFFFFF" }
+    };
+
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FF1E3353" }
+    };
+
+    cell.alignment = {
+      vertical: "middle",
+      horizontal: "center",
+      wrapText: true
+    };
+
+    cell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+  });
+}
+
+function styleSectionRow(row) {
+  row.eachCell((cell) => {
+    cell.font = {
+      bold: true,
+      color: { argb: "FF000000" }
+    };
+
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFD9D9D9" }
+    };
+
+    cell.alignment = {
+      vertical: "middle",
+      horizontal: "left",
+      wrapText: true
+    };
+
+    cell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+  });
+}
+
+function styleNormalRow(row) {
+  row.eachCell((cell) => {
+    cell.alignment = {
+      vertical: "top",
+      horizontal: "left",
+      wrapText: true
+    };
+
+    cell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+  });
+}
+
+function formatDateExcel(value) {
+  if (!value) return "N/A";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return String(value);
+  }
+
+  return date.toLocaleDateString("en-US", {
+    month: "2-digit",
+    day: "2-digit",
+    year: "numeric"
+  });
+}
+
+function createDueDiligenceSheet(workbook, assessments) {
+  const sheet = workbook.addWorksheet("Due Diligence Form");
+
+  sheet.columns = [
+    { header: "Assessment ID", key: "assessment_code", width: 18 },
+    { header: "Company Name", key: "company_name", width: 30 },
+    { header: "Product / Services", key: "product_services_offered", width: 42 },
+    { header: "Purpose", key: "purpose", width: 24 },
+    { header: "Assessment Date", key: "assessment_date", width: 18 },
+    { header: "Status", key: "overall_status", width: 24 },
+    { header: "Created By", key: "created_by", width: 26 }
+  ];
+
+  sheet.mergeCells("A1:G1");
+  sheet.getCell("A1").value = "DUE DILIGENCE FORM";
+  sheet.getCell("A1").font = {
+    bold: true,
+    size: 18,
+    color: { argb: "FFFFFFFF" }
+  };
+  sheet.getCell("A1").fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FF1E3353" }
+  };
+  sheet.getCell("A1").alignment = {
+    horizontal: "center",
+    vertical: "middle"
+  };
+
+  sheet.addRow([]);
+
+  const header = sheet.addRow([
+    "Assessment ID",
+    "Company Name",
+    "Product / Services",
+    "Purpose",
+    "Assessment Date",
+    "Status",
+    "Created By"
+  ]);
+
+  styleHeaderRow(header);
+
+  assessments.forEach((item) => {
+    const row = sheet.addRow([
+      item.assessment_code || `VA-${item.assessment_id}`,
+      item.company_name || "N/A",
+      item.product_services_offered || "N/A",
+      item.purpose || "N/A",
+      formatDateExcel(item.assessment_date),
+      item.overall_status || "N/A",
+      item.created_by || "N/A"
+    ]);
+
+    styleNormalRow(row);
+  });
+
+  sheet.views = [{ state: "frozen", ySplit: 3 }];
+}
+
+function createDepartmentAnswersSheet(workbook, answers) {
+  const sheet = workbook.addWorksheet("Information Security");
+
+  sheet.columns = [
+    { header: "Assessment ID", key: "assessment_code", width: 18 },
+    { header: "Vendor", key: "company_name", width: 30 },
+    { header: "Department", key: "department_role", width: 18 },
+    { header: "Section", key: "section_name", width: 28 },
+    { header: "Question", key: "question_text", width: 70 },
+    { header: "Response", key: "response", width: 16 },
+    { header: "Company Comment / Explanation", key: "explanation", width: 38 },
+    { header: "Artifacts", key: "artifact_name", width: 30 }
+  ];
+
+  sheet.mergeCells("A1:H1");
+  sheet.getCell("A1").value = "VENDOR / IT SUPPLIER DUE DILIGENCE QUESTIONNAIRES";
+  sheet.getCell("A1").font = {
+    bold: true,
+    size: 16,
+    color: { argb: "FFFFFFFF" }
+  };
+  sheet.getCell("A1").fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FF1E3353" }
+  };
+  sheet.getCell("A1").alignment = {
+    horizontal: "center",
+    vertical: "middle",
+    wrapText: true
+  };
+
+  sheet.addRow([]);
+
+  const header = sheet.addRow([
+    "Assessment ID",
+    "Vendor",
+    "Department",
+    "Section",
+    "Question",
+    "Response",
+    "Company Comment / Explanation",
+    "Artifacts"
+  ]);
+
+  styleHeaderRow(header);
+
+  let lastSectionKey = "";
+
+  answers.forEach((item) => {
+    const currentSectionKey = `${item.assessment_code}-${item.department_role}-${item.section_name}`;
+
+    if (currentSectionKey !== lastSectionKey) {
+      const sectionRow = sheet.addRow([
+        `${item.assessment_code || `VA-${item.assessment_id}`} - ${String(item.department_role || "").toUpperCase()} - ${item.section_name || "Section"}`,
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]);
+
+      sheet.mergeCells(`A${sectionRow.number}:H${sectionRow.number}`);
+      styleSectionRow(sectionRow);
+      lastSectionKey = currentSectionKey;
+    }
+
+    const row = sheet.addRow([
+      item.assessment_code || `VA-${item.assessment_id}`,
+      item.company_name || "N/A",
+      item.department_role || "N/A",
+      item.section_name || "N/A",
+      item.question_text || "N/A",
+      item.response || "N/A",
+      item.explanation || "",
+      item.artifact_name || ""
+    ]);
+
+    styleNormalRow(row);
+  });
+
+  sheet.views = [{ state: "frozen", ySplit: 3 }];
+}
+
+function createSignoffSheet(workbook, signoffs) {
+  const sheet = workbook.addWorksheet("Sign-off Sheet");
+
+  sheet.columns = [
+    { width: 8 },
+    { width: 8 },
+    { width: 22 },
+    { width: 26 },
+    { width: 8 },
+    { width: 8 },
+    { width: 22 },
+    { width: 26 }
+  ];
+
+  sheet.mergeCells("C2:H4");
+  sheet.getCell("C2").value = "VENDOR / IT SUPPLIER DUE DILIGENCE FORM\nSIGN-OFF SHEET";
+  sheet.getCell("C2").font = {
+    bold: true,
+    size: 18
+  };
+  sheet.getCell("C2").alignment = {
+    vertical: "middle",
+    horizontal: "center",
+    wrapText: true
+  };
+
+  const signoffMap = {};
+
+  signoffs.forEach((item) => {
+    signoffMap[String(item.role_name || "").toLowerCase()] = item;
+  });
+
+  function getSigner(role) {
+    return signoffMap[String(role).toLowerCase()]?.signer_name || "";
+  }
+
+  function box(roleCell, nameCell, roleLabel, signerName) {
+    sheet.getCell(roleCell).value = roleLabel;
+    sheet.getCell(nameCell).value = signerName;
+
+    [roleCell, nameCell].forEach((cellAddress) => {
+      const cell = sheet.getCell(cellAddress);
+
+      cell.alignment = {
+        horizontal: "center",
+        vertical: "middle",
+        wrapText: true
+      };
+
+      cell.font = {
+        bold: true
+      };
+
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FFD9D9D9" }
+      };
+
+      cell.border = {
+        top: { style: "thin" },
+        left: { style: "thin" },
+        bottom: { style: "thin" },
+        right: { style: "thin" }
+      };
+    });
+  }
+
+  sheet.mergeCells("C6:C10");
+  sheet.mergeCells("D6:E10");
+  box("C6", "D6", "IT", getSigner("IT"));
+
+  sheet.mergeCells("G6:G10");
+  sheet.mergeCells("H6:H10");
+  box("G6", "H6", "COMPLIANCE", getSigner("Compliance"));
+
+  sheet.mergeCells("C12:C16");
+  sheet.mergeCells("D12:E16");
+  box("C12", "D12", "INFOSEC", getSigner("InfoSec"));
+
+  sheet.mergeCells("G12:G16");
+  sheet.mergeCells("H12:H16");
+  box("G12", "H12", "DPO", getSigner("DPO"));
+
+  sheet.mergeCells("C18:C22");
+  sheet.mergeCells("D18:E22");
+  box("C18", "D18", "MANAGEMENT", getSigner("Management"));
+
+  sheet.mergeCells("G18:G22");
+  sheet.mergeCells("H18:H22");
+  box("G18", "H18", "HR", getSigner("HR"));
+
+  sheet.mergeCells("C25:H26");
+  sheet.getCell("C25").value =
+    "DISCLAIMER: All identified risks, findings and recommended controls are based on the disclosure of Vendor/IT supplier with the supervision of the requesting unit based on the initial questionnaire submitted.";
+
+  sheet.mergeCells("C28:H28");
+  sheet.getCell("C28").value =
+    "All identified Vendor/IT supplier risks and any open items are reflected in the Business unit's RCSAs and SLA Documentation.";
+
+  sheet.mergeCells("C30:H31");
+  sheet.getCell("C30").value =
+    "This signed document is a requirement for accreditation and onboarding of Vendor/IT supplier whose service engagement connects to the Company's network infrastructure/core systems and/or with exchange of data.";
+
+  ["C25", "C28", "C30"].forEach((cellAddress) => {
+    const cell = sheet.getCell(cellAddress);
+
+    cell.alignment = {
+      horizontal: "center",
+      vertical: "middle",
+      wrapText: true
+    };
+
+    cell.font = {
+      size: 9,
+      italic: true
+    };
+  });
+}
+
+app.get("/admin/export-excel", requireRole("admin"), async (_req, res) => {
+  try {
+    const assessments = await runQuery(`
+      SELECT
+        va.assessment_id,
+        va.assessment_code,
+        va.vendor_id,
+        va.purpose,
+        va.assessment_date,
+        va.overall_status,
+        va.created_at,
+        v.company_name,
+        v.product_services_offered,
+        u.full_name AS created_by
+      FROM vendor_assessments va
+      JOIN vendors v ON va.vendor_id = v.vendor_id
+      LEFT JOIN users u ON va.created_by_user_id = u.user_id
+      ORDER BY va.created_at DESC
+    `);
+
+    const answers = await runQuery(`
+      SELECT
+        da.department_assessment_id,
+        da.assessment_id,
+        da.department_role,
+        da.status AS department_status,
+        va.assessment_code,
+        va.vendor_id,
+        v.company_name,
+        ans.section_name,
+        ans.question_index,
+        ans.question_text,
+        ans.response,
+        ans.explanation,
+        ans.artifact_name,
+        ans.artifact_path
+      FROM department_answers ans
+      JOIN department_assessments da
+        ON ans.department_assessment_id = da.department_assessment_id
+      JOIN vendor_assessments va
+        ON da.assessment_id = va.assessment_id
+      JOIN vendors v
+        ON va.vendor_id = v.vendor_id
+      ORDER BY
+        va.assessment_id DESC,
+        FIELD(da.department_role, 'it', 'infosec', 'management', 'dpo', 'hr', 'compliance'),
+        ans.question_index ASC
+    `);
+
+    const signoffs = await runQuery(`
+      SELECT
+        s.signoff_id,
+        s.assessment_id,
+        s.department_assessment_id,
+        s.role_name,
+        s.signer_name,
+        s.signoff_status,
+        s.signed_at,
+        u.full_name AS created_by
+      FROM sign_offs s
+      LEFT JOIN users u ON s.created_by_user_id = u.user_id
+      ORDER BY s.created_at DESC
+    `);
+
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = "Validify";
+    workbook.created = new Date();
+
+    createDueDiligenceSheet(workbook, assessments);
+    createDepartmentAnswersSheet(workbook, answers);
+    createSignoffSheet(workbook, signoffs);
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+
+    res.setHeader(
+      "Content-Disposition",
+      "attachment; filename=Validify_Due_Diligence_Report.xlsx"
+    );
+
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (error) {
+    console.error("Admin Excel export error:", error);
+    res.status(500).json({
+      message: "Failed to generate Excel report."
+    });
   }
 });
 

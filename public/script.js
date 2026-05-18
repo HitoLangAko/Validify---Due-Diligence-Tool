@@ -223,6 +223,7 @@ function applyRoleLayout() {
   }
 
   populateSignoffRole();
+  updateTopActionButton();
   showPage(defaultPageByRole[currentRole] || "dashboard");
 }
 
@@ -884,6 +885,74 @@ function populateSignoffRole() {
   }
 }
 
+async function generateAdminExcel() {
+  try {
+    if (refreshBtn) {
+      refreshBtn.disabled = true;
+      refreshBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Generating...`;
+    }
+
+    const response = await fetch("/admin/export-excel");
+
+    if (!response.ok) {
+      let message = "Failed to generate Excel.";
+
+      try {
+        const errorData = await response.json();
+        message = errorData.message || message;
+      } catch (_error) {}
+
+      alert(message);
+      return;
+    }
+
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = "Validify_Due_Diligence_Report.xlsx";
+
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    window.URL.revokeObjectURL(downloadUrl);
+
+    showToast("Excel report generated.");
+  } catch (error) {
+    console.error("Generate Excel error:", error);
+    alert("Failed to generate Excel report.");
+  } finally {
+    updateTopActionButton();
+    if (refreshBtn) {
+      refreshBtn.disabled = false;
+    }
+  }
+}
+
+function updateTopActionButton() {
+  if (!refreshBtn) return;
+
+  if (currentRole === "admin") {
+    refreshBtn.innerHTML = `<i class="fa-solid fa-file-excel"></i> Generate Excel`;
+  } else {
+    refreshBtn.innerHTML = `<i class="fa-solid fa-rotate"></i> Refresh`;
+  }
+}
+
+if (refreshBtn) {
+  refreshBtn.addEventListener("click", async () => {
+    if (currentRole === "admin") {
+      await generateAdminExcel();
+      return;
+    }
+
+    refreshCurrentPage();
+    showToast("Page refreshed.");
+  });
+}
+
 async function submitSignoff(event) {
   event.preventDefault();
   const formData = new FormData();
@@ -908,8 +977,6 @@ function setupEvents() {
   document.querySelectorAll("[data-page]").forEach((button) => {
     button.addEventListener("click", () => showPage(button.dataset.page));
   });
-
-  if (refreshBtn) refreshBtn.addEventListener("click", () => { refreshCurrentPage(); showToast("Page refreshed."); });
 
   if (accountToggle && accountMenu) {
     accountToggle.addEventListener("click", (event) => {
