@@ -2137,16 +2137,12 @@ function createSupplierDDFSheet(workbook, assessment = {}, answers = []) {
   sheet.getRow(1).height = 24;
 
   const infoRows = [
-    ["Assessment ID:", selectedAssessment.assessment_code || `VA-${selectedAssessment.assessment_id || ""}`],
-    ["Assessment Date:", formatExcelDate(selectedAssessment.assessment_date)],
     ["Company Name:", selectedAssessment.company_name || ""],
     ["Company Website:", selectedAssessment.company_website || ""],
     ["Product/ Services Offered to <company>:", selectedAssessment.product_services_offered || ""],
     ["Purpose: For Accreditation/Re-accreditation, New contract or Renewal:", selectedAssessment.purpose || ""],
-    [
-      "Contact Person Name / Email Address / Phone Number:",
-      `${selectedAssessment.contact_person_name || ""} ${selectedAssessment.contact_email || ""} ${selectedAssessment.contact_phone || ""}`.trim()
-    ]
+    ["Contact Person Name / Email Address / Phone Number", `${selectedAssessment.contact_person_name || ""} ${selectedAssessment.contact_email || ""} ${selectedAssessment.contact_phone || ""}`.trim()],
+    ["Date of Assessment:", formatExcelDate(assessment.assessment_date)]
   ];
 
   let row = 2;
