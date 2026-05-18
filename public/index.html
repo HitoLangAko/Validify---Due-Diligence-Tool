@@ -447,13 +447,13 @@
       </section>
 
       <section class="page" id="signoffPage">
-        <div class="content-card signoff-card">
-          <div class="signoff-heading">
+        <div class="content-card signoff-wrapper">
+          <div class="signoff-header">
             <h3>Sign-off Authorization</h3>
             <p>Please provide your digital signature details to finalize approval.</p>
           </div>
 
-          <form id="signoffForm">
+          <form id="signoffForm" class="signoff-form">
             <div class="field-group">
               <label>Department / Role</label>
               <select id="signoffRole" required>
@@ -464,29 +464,54 @@
 
             <div class="field-group">
               <label>Signer's Full Name</label>
-              <input type="text" id="signoffName" placeholder="Enter Full Name" required />
+              <input
+                type="text"
+                id="signoffName"
+                placeholder="Enter Full Name"
+                required
+              />
             </div>
 
             <div class="field-group">
               <label>Approval Decision</label>
-              <div class="radio-row">
-                <label><input type="radio" name="approvalDecision" value="Signed" checked /> Approve and Sign</label>
-                <label><input type="radio" name="approvalDecision" value="Pending" /> Keep Pending</label>
+
+              <div class="signoff-radio-row">
+                <label>
+                  <input type="radio" name="approvalDecision" value="Signed" checked />
+                  Approve and Sign
+                </label>
+
+                <label>
+                  <input type="radio" name="approvalDecision" value="Pending" />
+                  Keep Pending
+                </label>
               </div>
             </div>
 
             <div class="field-group">
               <label>Digital Signature</label>
-              <label for="signatureFile" class="upload-signature-btn">
+
+              <label for="signatureFile" class="signature-upload-btn">
                 <i class="fa-solid fa-upload"></i>
                 <span id="signatureFileName">Upload Signature</span>
               </label>
-              <input type="file" id="signatureFile" class="hidden" accept="image/*,.pdf" />
+
+              <input
+                type="file"
+                id="signatureFile"
+                class="hidden"
+                accept="image/*,.pdf"
+              />
             </div>
 
-            <div class="button-row signoff-actions">
-              <button type="button" class="cancel-btn" id="cancelSignoffBtn">Cancel</button>
-              <button type="submit" class="confirm-btn">Confirm & Sign-Off</button>
+            <div class="signoff-actions">
+              <button type="button" class="signoff-cancel-btn" id="cancelSignoffBtn">
+                Cancel
+              </button>
+
+              <button type="submit" class="signoff-confirm-btn">
+                Confirm &amp; Sign-Off
+              </button>
             </div>
           </form>
         </div>
