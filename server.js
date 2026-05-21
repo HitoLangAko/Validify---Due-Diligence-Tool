@@ -3045,7 +3045,7 @@ app.get("/vendor/dashboard", requireVendor, async (req, res) => {
   }
 });
 
-app.post("/vendor/vendors", requireVendor, async (req, res) => {
+app.post("/vendor/vendors", requireRole("vendor"), async (req, res) => {
   const {
     company_name,
     company_website,
@@ -3055,29 +3055,31 @@ app.post("/vendor/vendors", requireVendor, async (req, res) => {
     contact_phone
   } = req.body;
 
-  if (!company_name || !product_services_offered || !contact_person_name || !contact_email || !contact_phone) {
-    return res.status(400).json({ message: "Company name, services, contact person, email, and phone are required." });
+  if (!company_name || !product_services_offered || !contact_person_name) {
+    return res.status(400).json({
+      message: "Company name, services offered, and contact person are required."
+    });
   }
 
   try {
     const userId = req.session.user.user_id;
 
-    const duplicateRows = await runQuery(
+    const existing = await runQuery(
       `
         SELECT vendor_id
         FROM vendors
         WHERE user_id = ?
-        AND LOWER(company_name) = LOWER(?)
         LIMIT 1
       `,
-      [userId, company_name]
+      [userId]
     );
 
-    if (duplicateRows.length) {
+    if (existing.length) {
       await runQuery(
         `
           UPDATE vendors
           SET
+            company_name = ?,
             company_website = ?,
             product_services_offered = ?,
             contact_person_name = ?,
@@ -3085,29 +3087,38 @@ app.post("/vendor/vendors", requireVendor, async (req, res) => {
             contact_phone = ?,
             updated_at = CURRENT_TIMESTAMP
           WHERE vendor_id = ?
-          AND user_id = ?
         `,
         [
+          company_name,
           company_website || null,
           product_services_offered,
           contact_person_name,
-          contact_email,
-          contact_phone,
-          duplicateRows[0].vendor_id,
-          userId
+          contact_email || null,
+          contact_phone || null,
+          existing[0].vendor_id
         ]
       );
 
       return res.json({
-        message: "Vendor credentials updated.",
-        vendor_id: duplicateRows[0].vendor_id
+        message: "Vendor credentials updated successfully.",
+        vendor_id: existing[0].vendor_id
       });
     }
 
     const result = await runQuery(
       `
         INSERT INTO vendors
-        (user_id, company_name, company_website, product_services_offered, contact_person_name, contact_email, contact_phone, created_by_user_id, overall_status)
+        (
+          user_id,
+          company_name,
+          company_website,
+          product_services_offered,
+          contact_person_name,
+          contact_email,
+          contact_phone,
+          created_by_user_id,
+          overall_status
+        )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Pending')
       `,
       [
@@ -3116,20 +3127,20 @@ app.post("/vendor/vendors", requireVendor, async (req, res) => {
         company_website || null,
         product_services_offered,
         contact_person_name,
-        contact_email,
-        contact_phone,
+        contact_email || null,
+        contact_phone || null,
         userId
       ]
     );
 
     res.json({
-      message: "Vendor credentials saved.",
+      message: "Vendor credentials saved successfully.",
       vendor_id: result.insertId
     });
   } catch (error) {
-    console.error("Vendor credentials save error:", error);
+    console.error("Save vendor credentials error:", error);
     res.status(500).json({
-      message: error?.sqlMessage || error?.message || "Failed to save vendor credentials."
+      message: error.sqlMessage || "Failed to save vendor credentials."
     });
   }
 });
