@@ -15,14 +15,14 @@ async function routeUser() {
     const response = await fetch("/me", { credentials: "same-origin" });
 
     if (!response.ok) {
-      window.location.href = "login.html";
+      window.location.replace("login.html");
       return;
     }
 
     const user = await response.json();
-    window.location.href = ROLE_PAGE_MAP[user.role] || "login.html";
-  } catch (error) {
-    window.location.href = "login.html";
+    window.location.replace(ROLE_PAGE_MAP[user.role] || "login.html");
+  } catch (_error) {
+    window.location.replace("login.html");
   }
 }
 

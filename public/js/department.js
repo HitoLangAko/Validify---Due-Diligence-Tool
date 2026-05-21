@@ -1,7 +1,76 @@
+// VALIDIFY SESSION AND BACK-BUTTON SECURITY
+const VALIDIFY_SECURITY_ROLE_PAGES = {
+  vendor: "vendor.html",
+  employee: "employee.html",
+  admin: "employee.html",
+  it: "department.html",
+  infosec: "department.html",
+  management: "department.html",
+  dpo: "department.html",
+  hr: "department.html",
+  compliance: "department.html"
+};
+
+let validifyIsLoggingOut = false;
+
+function validifyRedirectToRoleHome(role) {
+  window.location.replace(VALIDIFY_SECURITY_ROLE_PAGES[role] || "login.html");
+}
+
+function validifyLockDashboardBackButton() {
+  if (!window.history || !window.history.pushState) return;
+
+  window.history.replaceState({ validifyProtected: true }, "", window.location.href);
+  window.history.pushState({ validifyProtected: true }, "", window.location.href);
+
+  window.addEventListener("popstate", () => {
+    if (validifyIsLoggingOut) return;
+    window.history.pushState({ validifyProtected: true }, "", window.location.href);
+  });
+}
+
+async function validifyCheckSessionOrRedirect(allowedRoles = []) {
+  try {
+    const response = await fetch("/me", {
+      method: "GET",
+      credentials: "same-origin",
+      cache: "no-store"
+    });
+
+    if (!response.ok) {
+      window.location.replace("login.html");
+      return null;
+    }
+
+    const user = await response.json();
+
+    if (Array.isArray(allowedRoles) && allowedRoles.length && !allowedRoles.includes(user.role)) {
+      validifyRedirectToRoleHome(user.role);
+      return null;
+    }
+
+    return user;
+  } catch (_error) {
+    window.location.replace("login.html");
+    return null;
+  }
+}
+
+function validifyAttachPageShowSessionCheck(allowedRoles = []) {
+  window.addEventListener("pageshow", (event) => {
+    if (event.persisted) {
+      validifyCheckSessionOrRedirect(allowedRoles);
+    }
+  });
+}
+
+validifyLockDashboardBackButton();
+
 // DEPARTMENT PAGE JS - separated from original script.js
 window.VALIDIFY_ALLOWED_ROLES = ["it", "infosec", "management", "dpo", "hr", "compliance"];
 
 const VALIDIFY_ROLE_PAGES = {
+  vendor: "vendor.html",
   employee: "employee.html",
   admin: "employee.html",
   it: "department.html",
@@ -13,7 +82,7 @@ const VALIDIFY_ROLE_PAGES = {
 };
 
 function redirectToRoleHome(role) {
-  window.location.href = VALIDIFY_ROLE_PAGES[role] || "login.html";
+  window.location.replace(VALIDIFY_ROLE_PAGES[role] || "login.html");
 }
 
 let currentUser = null;
@@ -627,7 +696,7 @@ async function checkLoggedInUser() {
       return;
     }
   } catch (_error) {
-    window.location.href = "login.html";
+    window.location.replace("login.html");
     return;
   }
   applyRoleLayout();
@@ -2156,15 +2225,12 @@ function setupEvents() {
 
   if (logoutBtn) {
     logoutBtn.addEventListener("click", async () => {
+      validifyIsLoggingOut = true;
       try {
-        await fetch("/logout", {
-          method: "POST",
-          credentials: "same-origin"
-        });
+        await fetch("/logout", { method: "POST", credentials: "same-origin" });
       } catch (error) {
         console.error(error);
       }
-
       sessionStorage.clear();
       localStorage.removeItem("currentUser");
       window.location.replace("login.html");
@@ -2280,6 +2346,7 @@ if (profileForm) {
   if (cancelSignoffBtn) cancelSignoffBtn.addEventListener("click", () => showPage("dashboard"));
 }
 
+validifyAttachPageShowSessionCheck(window.VALIDIFY_ALLOWED_ROLES);
 setupAddVendorForm();
 setupEvents();
 checkLoggedInUser();

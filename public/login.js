@@ -3,23 +3,30 @@ const registerForm = document.getElementById("registerForm");
 const messageBox = document.getElementById("messageBox");
 const authTitle = document.getElementById("authTitle");
 
+const VALIDIFY_ROLE_PAGES = {
+  vendor: "vendor.html",
+  employee: "employee.html",
+  admin: "employee.html",
+  it: "department.html",
+  infosec: "department.html",
+  management: "department.html",
+  dpo: "department.html",
+  hr: "department.html",
+  compliance: "department.html"
+};
+
 function getRedirectPage(role) {
-  if (role === "vendor") return "vendor.html";
-  if (role === "employee") return "employee.html";
-
-  if (["it", "infosec", "management", "dpo", "hr", "compliance"].includes(role)) {
-    return "department.html";
-  }
-
-  return "login.html";
+  return VALIDIFY_ROLE_PAGES[role] || "login.html";
 }
 
 function showMessage(message, type = "error") {
+  if (!messageBox) return;
   messageBox.textContent = message;
   messageBox.className = `message show ${type}`;
 }
 
 function clearMessage() {
+  if (!messageBox) return;
   messageBox.textContent = "";
   messageBox.className = "message";
 }
@@ -49,10 +56,6 @@ async function api(url, options = {}) {
   return data;
 }
 
-/* SECURITY:
-   If the user is already logged in and presses Back to login.html,
-   immediately send them back to their dashboard.
-*/
 async function redirectIfAlreadyLoggedIn() {
   try {
     const user = await api("/me");
@@ -61,11 +64,17 @@ async function redirectIfAlreadyLoggedIn() {
       window.location.replace(getRedirectPage(user.role));
     }
   } catch (_error) {
-    // Not logged in, stay on login page.
+    // User is not logged in, stay on login page.
   }
 }
 
 redirectIfAlreadyLoggedIn();
+
+window.addEventListener("pageshow", (event) => {
+  if (event.persisted) {
+    redirectIfAlreadyLoggedIn();
+  }
+});
 
 document.querySelectorAll("[data-auth-tab]").forEach((button) => {
   button.addEventListener("click", () => {
@@ -75,10 +84,13 @@ document.querySelectorAll("[data-auth-tab]").forEach((button) => {
       item.classList.toggle("active", item.dataset.authTab === tab);
     });
 
-    loginForm.classList.toggle("active", tab === "login");
-    registerForm.classList.toggle("active", tab === "register");
+    if (loginForm) loginForm.classList.toggle("active", tab === "login");
+    if (registerForm) registerForm.classList.toggle("active", tab === "register");
 
-    authTitle.textContent = tab === "login" ? "Login" : "Create an Account";
+    if (authTitle) {
+      authTitle.textContent = tab === "login" ? "Login" : "Create an Account";
+    }
+
     clearMessage();
   });
 });
@@ -105,8 +117,6 @@ if (loginForm) {
         throw new Error("Login succeeded, but no role was returned.");
       }
 
-      // SECURITY:
-      // replace() prevents login page from staying in browser history.
       window.location.replace(getRedirectPage(role));
     } catch (error) {
       showMessage(error.message || "Failed to login.");
@@ -133,7 +143,7 @@ if (registerForm) {
       });
 
       registerForm.reset();
-      document.querySelector('[data-auth-tab="login"]').click();
+      document.querySelector('[data-auth-tab="login"]')?.click();
       showMessage(data.message || "Account created. You can now log in.", "success");
     } catch (error) {
       showMessage(error.message || "Failed to register account.");

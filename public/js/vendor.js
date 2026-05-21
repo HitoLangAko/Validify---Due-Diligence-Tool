@@ -1,3 +1,71 @@
+// VALIDIFY SESSION AND BACK-BUTTON SECURITY
+const VALIDIFY_SECURITY_ROLE_PAGES = {
+  vendor: "vendor.html",
+  employee: "employee.html",
+  admin: "employee.html",
+  it: "department.html",
+  infosec: "department.html",
+  management: "department.html",
+  dpo: "department.html",
+  hr: "department.html",
+  compliance: "department.html"
+};
+
+let validifyIsLoggingOut = false;
+
+function validifyRedirectToRoleHome(role) {
+  window.location.replace(VALIDIFY_SECURITY_ROLE_PAGES[role] || "login.html");
+}
+
+function validifyLockDashboardBackButton() {
+  if (!window.history || !window.history.pushState) return;
+
+  window.history.replaceState({ validifyProtected: true }, "", window.location.href);
+  window.history.pushState({ validifyProtected: true }, "", window.location.href);
+
+  window.addEventListener("popstate", () => {
+    if (validifyIsLoggingOut) return;
+    window.history.pushState({ validifyProtected: true }, "", window.location.href);
+  });
+}
+
+async function validifyCheckSessionOrRedirect(allowedRoles = []) {
+  try {
+    const response = await fetch("/me", {
+      method: "GET",
+      credentials: "same-origin",
+      cache: "no-store"
+    });
+
+    if (!response.ok) {
+      window.location.replace("login.html");
+      return null;
+    }
+
+    const user = await response.json();
+
+    if (Array.isArray(allowedRoles) && allowedRoles.length && !allowedRoles.includes(user.role)) {
+      validifyRedirectToRoleHome(user.role);
+      return null;
+    }
+
+    return user;
+  } catch (_error) {
+    window.location.replace("login.html");
+    return null;
+  }
+}
+
+function validifyAttachPageShowSessionCheck(allowedRoles = []) {
+  window.addEventListener("pageshow", (event) => {
+    if (event.persisted) {
+      validifyCheckSessionOrRedirect(allowedRoles);
+    }
+  });
+}
+
+validifyLockDashboardBackButton();
+
 const STORAGE_KEYS = {
   vendors: "validify_mock_vendors",
   assessments: "validify_mock_global_assessments",
@@ -199,40 +267,6 @@ function showToast(message) {
   toast.textContent = message;
   toast.classList.add("show");
   setTimeout(() => toast.classList.remove("show"), 2400);
-}
-
-function setVendorAccountDisplay(name = "Vendor Account", roleText = "Vendor Portal") {
-  const displayName = String(name || "Vendor Account").trim() || "Vendor Account";
-  const initial = displayName.charAt(0).toUpperCase() || "V";
-
-  const accountName = document.getElementById("accountName");
-  const accountMenuName = document.getElementById("accountMenuName");
-  const accountRoleText = document.getElementById("accountRoleText");
-  const accountMenuRoleText = document.getElementById("accountMenuRoleText");
-  const accountAvatar = document.getElementById("accountAvatar");
-  const accountMenuAvatar = document.getElementById("accountMenuAvatar");
-
-  if (accountName) accountName.textContent = displayName;
-  if (accountMenuName) accountMenuName.textContent = displayName;
-  if (accountRoleText) accountRoleText.textContent = roleText;
-  if (accountMenuRoleText) accountMenuRoleText.textContent = roleText;
-  if (accountAvatar) accountAvatar.textContent = initial;
-  if (accountMenuAvatar) accountMenuAvatar.textContent = initial;
-}
-
-async function loadVendorAccountDisplay() {
-  try {
-    const response = await fetch("/me", { credentials: "same-origin" });
-    if (!response.ok) return;
-
-    const user = await response.json();
-    const fullName = `${user.first_name || ""} ${user.last_name || ""}`.trim();
-    const displayName = fullName || user.full_name || "Vendor Account";
-
-    setVendorAccountDisplay(displayName, "Vendor Portal");
-  } catch (_error) {
-    setVendorAccountDisplay("Vendor Account", "Vendor Portal");
-  }
 }
 
 function showPage(pageKey) {
@@ -729,63 +763,30 @@ function setupEvents() {
     localStorage.setItem(STORAGE_KEYS.darkMode, document.body.classList.contains("dark-mode") ? "1" : "0");
   });
 
-  const vendorAccountToggle = document.getElementById("vendorAccountToggle");
-  const vendorAccountMenu = document.getElementById("vendorAccountMenu");
-
-  if (vendorAccountToggle && vendorAccountMenu) {
-    vendorAccountToggle.addEventListener("click", (event) => {
-      event.stopPropagation();
-      vendorAccountMenu.classList.toggle("hidden");
-      vendorAccountToggle.classList.toggle("active");
-    });
-
-    vendorAccountMenu.addEventListener("click", (event) => {
-      event.stopPropagation();
-    });
-
-    document.addEventListener("click", () => {
-      vendorAccountMenu.classList.add("hidden");
-      vendorAccountToggle.classList.remove("active");
-    });
-  }
-
-  document.getElementById("vendorProfileBtn")?.addEventListener("click", () => {
-    vendorAccountMenu?.classList.add("hidden");
-    vendorAccountToggle?.classList.remove("active");
-    showPage("credentials");
-    showToast("Profile opened. Update your vendor credentials here.");
-  });
-
-  document.getElementById("vendorHelpBtn")?.addEventListener("click", () => {
-    vendorAccountMenu?.classList.add("hidden");
-    vendorAccountToggle?.classList.remove("active");
-    showToast("Help: complete credentials, create an assessment, answer all sections, then submit.");
-  });
-
   document.getElementById("logoutBtn")?.addEventListener("click", async () => {
+    validifyIsLoggingOut = true;
     try {
-    await fetch("/logout", {
-      method: "POST",
-      credentials: "same-origin"
-    });
-  } catch (error) {
-    console.error(error);
-  }
-
-  sessionStorage.clear();
-  localStorage.removeItem("currentUser");
-  window.location.replace("login.html");
+      await fetch("/logout", { method: "POST", credentials: "same-origin" });
+    } catch (_error) {}
+    sessionStorage.clear();
+    localStorage.removeItem("currentUser");
+    window.location.replace("login.html");
   });
 }
 
-function boot() {
+async function boot() {
+  const loggedInVendor = await validifyCheckSessionOrRedirect(["vendor"]);
+  if (!loggedInVendor) return;
+
   if (localStorage.getItem(STORAGE_KEYS.darkMode) === "1") {
     document.body.classList.add("dark-mode");
   }
 
-  const vendors = getVendors();
-  setVendorAccountDisplay(vendors[0]?.company_name || "Vendor Account", "Vendor Portal");
-  loadVendorAccountDisplay();
+  const accountName = document.getElementById("accountName");
+  if (accountName) {
+    const vendors = getVendors();
+    accountName.textContent = vendors[0]?.company_name || "Vendor Account";
+  }
 
   setupEvents();
   document.getElementById("assessmentDate").value = todayInputValue();
@@ -793,4 +794,5 @@ function boot() {
   renderDashboard();
 }
 
+validifyAttachPageShowSessionCheck(["vendor"]);
 document.addEventListener("DOMContentLoaded", boot);
