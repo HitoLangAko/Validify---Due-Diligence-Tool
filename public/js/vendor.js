@@ -173,7 +173,7 @@ async function api(url, options = {}) {
   }
 
   if (!response.ok) {
-    throw new Error(data?.message || "Request failed.");
+    throw new Error(data?.message || `Request failed (${response.status}).`);
   }
 
   return data;
