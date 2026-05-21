@@ -136,6 +136,7 @@ const defaultPageByRole = {
 
 const customPageLabels = {
   dashboard: "Dashboard",
+  "vendors-due-diligence": "Vendors Due Diligence",
   "add-vendor": "Insert Vendor",
   "my-submissions": "My Submissions",
   "vendor-queue": "Vendor Queue",
@@ -241,6 +242,17 @@ const profileFirstName = document.getElementById("profileFirstName");
 const profileLastName = document.getElementById("profileLastName");
 const profileJobTitle = document.getElementById("profileJobTitle");
 const profileWorkEmail = document.getElementById("profileWorkEmail");
+const vendorDueDiligenceSelect = document.getElementById("vendorDueDiligenceSelect");
+const vendorDueDiligenceMeta = document.getElementById("vendorDueDiligenceMeta");
+const vendorDdfBody = document.getElementById("vendorDdfBody");
+const vendorIsBody = document.getElementById("vendorIsBody");
+const vendorDueDiligenceDecisionNote = document.getElementById("vendorDueDiligenceDecisionNote");
+const returnVendorDueDiligenceBtn = document.getElementById("returnVendorDueDiligenceBtn");
+const rejectVendorDueDiligenceBtn = document.getElementById("rejectVendorDueDiligenceBtn");
+const approveVendorDueDiligenceBtn = document.getElementById("approveVendorDueDiligenceBtn");
+
+let vendorDueDiligenceRows = [];
+let selectedVendorDueDiligence = null;
 
 function getRoleLabel(role = currentRole) {
   return roleLabels[role] || role || "User";
@@ -797,6 +809,9 @@ async function refreshCurrentPage(_page = getCurrentPage()) {
   try {
     if (currentRole === "employee") {
       await loadEmployeeData();
+      if (_page === "vendors-due-diligence") {
+        await loadVendorDueDiligenceData();
+      }
     }
     if (isDepartmentRole()) {
       await loadDepartmentWorkflowData();
@@ -2196,6 +2211,226 @@ async function generateAdminExcel() {
   }
 }
 
+
+function getVendorWorkflowStatus(assessment) {
+  return assessment?.vendor_status || assessment?.display_status || assessment?.overall_status || "Pending";
+}
+
+function displayVendorWorkflowStatus(status) {
+  return String(status || "Pending")
+    .replaceAll("Pending Admin Approval", "Submitted to Employee")
+    .replaceAll("Submitted", "Submitted to Employee")
+    .replaceAll("Approved", "Approved for Department Review");
+}
+
+async function loadVendorDueDiligenceData() {
+  if (!vendorDueDiligenceSelect) return;
+
+  const data = await api("/employee/vendor-due-diligence");
+  vendorDueDiligenceRows = data.assessments || [];
+
+  renderVendorDueDiligenceSelect();
+
+  if (!selectedVendorDueDiligence && vendorDueDiligenceRows.length) {
+    selectedVendorDueDiligence = vendorDueDiligenceRows[0];
+    vendorDueDiligenceSelect.value = String(selectedVendorDueDiligence.assessment_id);
+  }
+
+  renderVendorDueDiligenceDetail();
+}
+
+function renderVendorDueDiligenceSelect() {
+  if (!vendorDueDiligenceSelect) return;
+
+  const selectedId = selectedVendorDueDiligence?.assessment_id;
+
+  vendorDueDiligenceSelect.innerHTML = `<option value="">Select vendor assessment</option>`;
+
+  if (!vendorDueDiligenceRows.length) {
+    vendorDueDiligenceSelect.innerHTML += `<option value="" disabled>No vendor due diligence submissions yet.</option>`;
+    return;
+  }
+
+  vendorDueDiligenceRows.forEach((item) => {
+    const status = displayVendorWorkflowStatus(getVendorWorkflowStatus(item));
+    vendorDueDiligenceSelect.innerHTML += `
+      <option value="${escapeHTML(item.assessment_id)}">
+        ${escapeHTML(item.assessment_code || `VA-${item.assessment_id}`)} - ${escapeHTML(item.company_name || "Vendor")} - ${escapeHTML(status)}
+      </option>
+    `;
+  });
+
+  if (selectedId) {
+    vendorDueDiligenceSelect.value = String(selectedId);
+  }
+}
+
+function vendorAnswerDisplay(answer) {
+  const response = String(answer?.response || "").trim();
+  if (response === "NA") return "N/A";
+  return response || "-";
+}
+
+function renderVendorAnswerSections(container, assessment, mode) {
+  if (!container) return;
+
+  if (!assessment) {
+    container.innerHTML = `<p class="empty-cell">Select a vendor assessment first.</p>`;
+    return;
+  }
+
+  const answers = (assessment.department_answers || [])
+    .filter((answer) => answer.department_role === "employee")
+    .filter((answer) => {
+      const isInfoSec = String(answer.section_name || "").toLowerCase() === "information security";
+      return mode === "is" ? isInfoSec : !isInfoSec;
+    });
+
+  if (!answers.length) {
+    container.innerHTML = `<p class="empty-cell">No ${mode === "is" ? "Information Security" : "Due Diligence"} answers submitted yet.</p>`;
+    return;
+  }
+
+  const grouped = new Map();
+
+  answers.forEach((answer) => {
+    const sectionName = answer.section_name || "Submitted Answers";
+    if (!grouped.has(sectionName)) grouped.set(sectionName, []);
+    grouped.get(sectionName).push(answer);
+  });
+
+  let html = "";
+
+  grouped.forEach((sectionAnswers, sectionName) => {
+    sectionAnswers.sort((a, b) => Number(a.question_index) - Number(b.question_index));
+
+    html += `
+      <div class="admin-ddf-section">
+        <div class="admin-ddf-section-title">${escapeHTML(sectionName)}</div>
+        <div class="table-wrap">
+          <table class="admin-ddf-table vendor-dd-answer-table">
+            <thead>
+              <tr>
+                <th>Question</th>
+                <th>Vendor Answer</th>
+                <th>Vendor Comment</th>
+                <th>PDF Document</th>
+              </tr>
+            </thead>
+            <tbody>
+    `;
+
+    html += sectionAnswers.map((answer, index) => `
+      <tr>
+        <td class="admin-ddf-question">${index + 1}. ${escapeHTML(answer.question_text || "Question not available.")}</td>
+        <td><strong>${escapeHTML(vendorAnswerDisplay(answer))}</strong></td>
+        <td><div class="admin-ddf-explanation">${escapeHTML(answer.explanation || "-")}</div></td>
+        <td>
+          ${answer.artifact_path
+            ? `<a class="review-file-link" href="${escapeHTML(answer.artifact_path)}" target="_blank">${escapeHTML(answer.artifact_name || "Open PDF")}</a>`
+            : "-"}
+        </td>
+      </tr>
+    `).join("");
+
+    html += `
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  });
+
+  container.innerHTML = html;
+}
+
+function renderVendorDueDiligenceMeta(assessment) {
+  if (!vendorDueDiligenceMeta) return;
+
+  if (!assessment) {
+    vendorDueDiligenceMeta.innerHTML = `
+      <div class="review-row"><span class="review-label">Assessment ID</span><span class="review-value">—</span></div>
+      <div class="review-row"><span class="review-label">Vendor</span><span class="review-value">—</span></div>
+      <div class="review-row"><span class="review-label">Purpose</span><span class="review-value">—</span></div>
+      <div class="review-row"><span class="review-label">Status</span><span class="status-pill status-pending">Pending</span></div>
+    `;
+    return;
+  }
+
+  const status = getVendorWorkflowStatus(assessment);
+
+  vendorDueDiligenceMeta.innerHTML = `
+    <div class="review-row"><span class="review-label">Assessment ID</span><span class="review-value">${escapeHTML(assessment.assessment_code || `VA-${assessment.assessment_id}`)}</span></div>
+    <div class="review-row"><span class="review-label">Vendor</span><span class="review-value">${escapeHTML(assessment.company_name || "-")}</span></div>
+    <div class="review-row"><span class="review-label">Purpose</span><span class="review-value">${escapeHTML(assessment.purpose || "-")}</span></div>
+    <div class="review-row"><span class="review-label">Status</span><span class="status-pill ${statusClass(status)}">${escapeHTML(displayVendorWorkflowStatus(status))}</span></div>
+    <div class="review-row full"><span class="review-label">Service Scope</span><span class="review-value">${escapeHTML(assessment.product_services_offered || "-")}</span></div>
+  `;
+}
+
+function setVendorDueDiligenceActionState(enabled) {
+  [returnVendorDueDiligenceBtn, rejectVendorDueDiligenceBtn, approveVendorDueDiligenceBtn].forEach((button) => {
+    if (button) button.disabled = !enabled;
+  });
+}
+
+function renderVendorDueDiligenceDetail() {
+  renderVendorDueDiligenceMeta(selectedVendorDueDiligence);
+  renderVendorAnswerSections(vendorDdfBody, selectedVendorDueDiligence, "ddf");
+  renderVendorAnswerSections(vendorIsBody, selectedVendorDueDiligence, "is");
+  setVendorDueDiligenceActionState(Boolean(selectedVendorDueDiligence));
+}
+
+function handleVendorDueDiligenceSelection() {
+  if (!vendorDueDiligenceSelect) return;
+
+  const selectedId = vendorDueDiligenceSelect.value;
+  selectedVendorDueDiligence = vendorDueDiligenceRows.find((item) => String(item.assessment_id) === String(selectedId)) || null;
+  renderVendorDueDiligenceDetail();
+}
+
+function switchVendorDueDiligenceTab(tabName, clickedButton) {
+  document.querySelectorAll("[data-vendor-dd-tab]").forEach((button) => button.classList.remove("active"));
+  document.querySelectorAll(".vendor-dd-panel").forEach((panel) => panel.classList.add("hidden"));
+
+  if (clickedButton) clickedButton.classList.add("active");
+
+  const panel = tabName === "is" ? document.getElementById("vendorIsPanel") : document.getElementById("vendorDdfPanel");
+  if (panel) panel.classList.remove("hidden");
+}
+
+async function submitVendorDueDiligenceDecision(decision) {
+  if (!selectedVendorDueDiligence?.assessment_id) {
+    alert("Please select a vendor assessment first.");
+    return;
+  }
+
+  const labels = {
+    return: "return this submission to the vendor",
+    reject: "reject this vendor submission",
+    approve: "approve this submission for department review"
+  };
+
+  if (!confirm(`Are you sure you want to ${labels[decision]}?`)) return;
+
+  try {
+    const data = await api(`/employee/vendor-due-diligence/${selectedVendorDueDiligence.assessment_id}/decision`, {
+      method: "POST",
+      body: JSON.stringify({
+        decision,
+        comment: vendorDueDiligenceDecisionNote?.value.trim() || ""
+      })
+    });
+
+    showToast(data.message || "Vendor due diligence decision saved.");
+    if (vendorDueDiligenceDecisionNote) vendorDueDiligenceDecisionNote.value = "";
+    selectedVendorDueDiligence = null;
+    await loadVendorDueDiligenceData();
+  } catch (error) {
+    alert(error.message || "Failed to save vendor due diligence decision.");
+  }
+}
+
 function setupEvents() {
   document.querySelectorAll("[data-page]").forEach((button) => {
     button.addEventListener("click", () => showPage(button.dataset.page));
@@ -2204,6 +2439,26 @@ function setupEvents() {
   document.querySelectorAll("[data-tab]").forEach((tabBtn) => {
     tabBtn.addEventListener("click", () => switchAssessmentReviewTab(tabBtn.dataset.tab, tabBtn));
   });
+
+  document.querySelectorAll("[data-vendor-dd-tab]").forEach((tabBtn) => {
+    tabBtn.addEventListener("click", () => switchVendorDueDiligenceTab(tabBtn.dataset.vendorDdTab, tabBtn));
+  });
+
+  if (vendorDueDiligenceSelect) {
+    vendorDueDiligenceSelect.addEventListener("change", handleVendorDueDiligenceSelection);
+  }
+
+  if (returnVendorDueDiligenceBtn) {
+    returnVendorDueDiligenceBtn.addEventListener("click", () => submitVendorDueDiligenceDecision("return"));
+  }
+
+  if (rejectVendorDueDiligenceBtn) {
+    rejectVendorDueDiligenceBtn.addEventListener("click", () => submitVendorDueDiligenceDecision("reject"));
+  }
+
+  if (approveVendorDueDiligenceBtn) {
+    approveVendorDueDiligenceBtn.addEventListener("click", () => submitVendorDueDiligenceDecision("approve"));
+  }
 
   if (refreshBtn) {
   refreshBtn.addEventListener("click", async () => {

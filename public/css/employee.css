@@ -3908,3 +3908,91 @@ input[type="file"]:not(.hidden):hover::file-selector-button,
 }
 /* Employee / Compliance Officer page-only overrides */
 body { }
+
+/* Vendors Due Diligence review page */
+.vendor-dd-review-card {
+  min-height: auto;
+}
+
+.vendor-dd-review-card .section-header p {
+  margin: -8px 0 18px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.vendor-dd-meta {
+  margin: 16px 0 20px;
+}
+
+.vendor-dd-tabs {
+  margin-top: 18px;
+}
+
+.vendor-dd-panel.active {
+  display: block;
+}
+
+.vendor-dd-answer-table th:nth-child(1),
+.vendor-dd-answer-table td:nth-child(1) {
+  width: 38%;
+}
+
+.vendor-dd-answer-table th:nth-child(2),
+.vendor-dd-answer-table td:nth-child(2) {
+  width: 12%;
+}
+
+.vendor-dd-answer-table th:nth-child(3),
+.vendor-dd-answer-table td:nth-child(3) {
+  width: 34%;
+}
+
+.vendor-dd-answer-table th:nth-child(4),
+.vendor-dd-answer-table td:nth-child(4) {
+  width: 16%;
+}
+
+.vendor-dd-decision-note textarea {
+  min-height: 92px;
+  resize: vertical;
+}
+
+.vendor-dd-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 14px;
+  margin-top: 18px;
+  flex-wrap: wrap;
+}
+
+.vendor-dd-actions .clear-form-btn,
+.vendor-dd-actions .red-action-btn,
+.vendor-dd-actions .submit-draft-btn {
+  min-width: 180px;
+  width: auto;
+  height: 48px;
+  text-transform: none;
+}
+
+.vendor-dd-actions .submit-draft-btn {
+  min-width: 260px;
+}
+
+.vendor-dd-actions button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+@media (max-width: 800px) {
+  .vendor-dd-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .vendor-dd-actions .clear-form-btn,
+  .vendor-dd-actions .red-action-btn,
+  .vendor-dd-actions .submit-draft-btn {
+    width: 100%;
+  }
+}
