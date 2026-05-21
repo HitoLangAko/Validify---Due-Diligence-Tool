@@ -3,32 +3,6 @@ const registerForm = document.getElementById("registerForm");
 const messageBox = document.getElementById("messageBox");
 const authTitle = document.getElementById("authTitle");
 
-document.querySelectorAll("[data-auth-tab]").forEach((button) => {
-  button.addEventListener("click", () => {
-    const tab = button.dataset.authTab;
-
-    document.querySelectorAll("[data-auth-tab]").forEach((item) => {
-      item.classList.toggle("active", item.dataset.authTab === tab);
-    });
-
-    loginForm.classList.toggle("active", tab === "login");
-    registerForm.classList.toggle("active", tab === "register");
-
-    authTitle.textContent = tab === "login" ? "Login" : "Create an Account";
-    clearMessage();
-  });
-});
-
-function showMessage(message, type = "error") {
-  messageBox.textContent = message;
-  messageBox.className = `message show ${type}`;
-}
-
-function clearMessage() {
-  messageBox.textContent = "";
-  messageBox.className = "message";
-}
-
 function getRedirectPage(role) {
   if (role === "vendor") return "vendor.html";
   if (role === "employee") return "employee.html";
@@ -38,6 +12,16 @@ function getRedirectPage(role) {
   }
 
   return "login.html";
+}
+
+function showMessage(message, type = "error") {
+  messageBox.textContent = message;
+  messageBox.className = `message show ${type}`;
+}
+
+function clearMessage() {
+  messageBox.textContent = "";
+  messageBox.className = "message";
 }
 
 async function api(url, options = {}) {
@@ -65,6 +49,40 @@ async function api(url, options = {}) {
   return data;
 }
 
+/* SECURITY:
+   If the user is already logged in and presses Back to login.html,
+   immediately send them back to their dashboard.
+*/
+async function redirectIfAlreadyLoggedIn() {
+  try {
+    const user = await api("/me");
+
+    if (user?.role) {
+      window.location.replace(getRedirectPage(user.role));
+    }
+  } catch (_error) {
+    // Not logged in, stay on login page.
+  }
+}
+
+redirectIfAlreadyLoggedIn();
+
+document.querySelectorAll("[data-auth-tab]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const tab = button.dataset.authTab;
+
+    document.querySelectorAll("[data-auth-tab]").forEach((item) => {
+      item.classList.toggle("active", item.dataset.authTab === tab);
+    });
+
+    loginForm.classList.toggle("active", tab === "login");
+    registerForm.classList.toggle("active", tab === "register");
+
+    authTitle.textContent = tab === "login" ? "Login" : "Create an Account";
+    clearMessage();
+  });
+});
+
 if (loginForm) {
   loginForm.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -87,7 +105,9 @@ if (loginForm) {
         throw new Error("Login succeeded, but no role was returned.");
       }
 
-      window.location.href = getRedirectPage(role);
+      // SECURITY:
+      // replace() prevents login page from staying in browser history.
+      window.location.replace(getRedirectPage(role));
     } catch (error) {
       showMessage(error.message || "Failed to login.");
     }

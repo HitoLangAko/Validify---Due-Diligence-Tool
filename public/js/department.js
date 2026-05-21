@@ -2156,9 +2156,18 @@ function setupEvents() {
 
   if (logoutBtn) {
     logoutBtn.addEventListener("click", async () => {
-      try { await fetch("/logout", { method: "POST", credentials: "same-origin" }); } catch (error) { console.error(error); }
+      try {
+        await fetch("/logout", {
+          method: "POST",
+          credentials: "same-origin"
+        });
+      } catch (error) {
+        console.error(error);
+      }
+
       sessionStorage.clear();
-      window.location.href = "login.html";
+      localStorage.removeItem("currentUser");
+      window.location.replace("login.html");
     });
   }
 

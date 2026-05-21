@@ -206,6 +206,30 @@ const departmentQuestionGroups = {
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+/* SECURITY:
+   Prevent browser from caching login/dashboard HTML pages.
+   This helps stop the Back button from showing old protected pages.
+*/
+app.use((req, res, next) => {
+  if (
+    req.path.endsWith(".html") ||
+    req.path === "/" ||
+    req.path === "/login.html" ||
+    req.path === "/index.html" ||
+    req.path === "/employee.html" ||
+    req.path === "/department.html" ||
+    req.path === "/vendor.html"
+  ) {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+    res.setHeader("Surrogate-Control", "no-store");
+  }
+
+  next();
+});
+
 app.use(express.static("public"));
 
 const uploadDir = path.join(__dirname, "public", "uploads");

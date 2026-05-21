@@ -764,9 +764,17 @@ function setupEvents() {
 
   document.getElementById("logoutBtn")?.addEventListener("click", async () => {
     try {
-      await fetch("/logout", { method: "POST", credentials: "same-origin" });
-    } catch (_error) {}
-    window.location.href = "login.html";
+    await fetch("/logout", {
+      method: "POST",
+      credentials: "same-origin"
+    });
+  } catch (error) {
+    console.error(error);
+  }
+
+  sessionStorage.clear();
+  localStorage.removeItem("currentUser");
+  window.location.replace("login.html");
   });
 }
 
