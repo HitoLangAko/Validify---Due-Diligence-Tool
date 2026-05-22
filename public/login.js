@@ -1,11 +1,23 @@
 const loginForm = document.getElementById("loginForm");
 const registerForm = document.getElementById("registerForm");
+const otpPanel = document.getElementById("otpPanel");
+const otpForm = document.getElementById("otpForm");
+const otpInputs = Array.from(document.querySelectorAll(".otp-input"));
+const otpEmailLabel = document.getElementById("otpEmailLabel");
+const otpExpire = document.getElementById("otpExpire");
+const requestOtpBtn = document.getElementById("requestOtpBtn");
+const verifyOtpBtn = document.getElementById("verifyOtpBtn");
+const backToLoginBtn = document.getElementById("backToLoginBtn");
 const messageBox = document.getElementById("messageBox");
 const authTitle = document.getElementById("authTitle");
 const registerRole = document.getElementById("registerRole");
 const vendorAccessCodeField = document.getElementById("vendorAccessCodeField");
 const vendorAccessHint = document.getElementById("vendorAccessHint");
 const vendorAccessCode = document.getElementById("vendorAccessCode");
+
+let pendingOtpEmail = "";
+let otpTimer = null;
+let otpRemainingSeconds = 0;
 
 function getRedirectPage(role) {
   if (role === "vendor") return "vendor.html";
@@ -23,41 +35,6 @@ function showMessage(message, type = "error") {
 
   messageBox.textContent = message;
   messageBox.className = `message show ${type}`;
-}
-
-function showVerifyMessage(message, email) {
-  if (!messageBox) return;
-
-  messageBox.className = "message show error";
-  messageBox.innerHTML = `
-    <div>${message}</div>
-    <button type="button" id="resendVerificationBtn" class="message-action-btn">
-      Resend verification email
-    </button>
-  `;
-
-  const resendBtn = document.getElementById("resendVerificationBtn");
-
-  if (resendBtn) {
-    resendBtn.addEventListener("click", async () => {
-      try {
-        resendBtn.disabled = true;
-        resendBtn.textContent = "Sending...";
-
-        const data = await api("/resend-verification", {
-          method: "POST",
-          body: JSON.stringify({ email })
-        });
-
-        showMessage(
-          data.message || "Verification email sent. Please check your inbox.",
-          "success"
-        );
-      } catch (error) {
-        showMessage(error.message || "Failed to resend verification email.");
-      }
-    });
-  }
 }
 
 function clearMessage() {
@@ -86,7 +63,10 @@ async function api(url, options = {}) {
   }
 
   if (!response.ok) {
-    throw new Error(data?.message || `Request failed (${response.status}).`);
+    const error = new Error(data?.message || `Request failed (${response.status}).`);
+    error.status = response.status;
+    error.data = data;
+    throw error;
   }
 
   return data;
@@ -112,6 +92,24 @@ window.addEventListener("pageshow", (event) => {
   }
 });
 
+function setAuthTitle(title) {
+  if (authTitle) authTitle.textContent = title;
+}
+
+function showPanel(panelName) {
+  loginForm?.classList.toggle("active", panelName === "login");
+  registerForm?.classList.toggle("active", panelName === "register");
+  otpPanel?.classList.toggle("active", panelName === "otp");
+
+  document.querySelectorAll("[data-auth-tab]").forEach((item) => {
+    item.classList.toggle("active", item.dataset.authTab === panelName);
+  });
+
+  if (panelName === "login") setAuthTitle("Login");
+  if (panelName === "register") setAuthTitle("Create an Account");
+  if (panelName === "otp") setAuthTitle("OTP Verification");
+}
+
 function toggleVendorAccessCodeField() {
   const isVendor = registerRole?.value === "vendor";
 
@@ -132,22 +130,98 @@ if (registerRole) {
   toggleVendorAccessCodeField();
 }
 
+function resetOtpInputs() {
+  otpInputs.forEach((input, index) => {
+    input.value = "";
+    if (index === 0) {
+      input.removeAttribute("disabled");
+    } else {
+      input.setAttribute("disabled", "true");
+    }
+  });
+
+  if (verifyOtpBtn) verifyOtpBtn.disabled = true;
+  otpInputs[0]?.focus();
+}
+
+function getEnteredOtp() {
+  return otpInputs.map((input) => input.value).join("");
+}
+
+function updateOtpButtonState() {
+  if (!verifyOtpBtn) return;
+  verifyOtpBtn.disabled = getEnteredOtp().length !== 4;
+}
+
+function startOtpTimer(seconds = 300) {
+  clearInterval(otpTimer);
+  otpRemainingSeconds = Number(seconds) || 300;
+
+  if (otpExpire) otpExpire.textContent = String(otpRemainingSeconds);
+
+  otpTimer = setInterval(() => {
+    otpRemainingSeconds -= 1;
+
+    if (otpExpire) otpExpire.textContent = String(Math.max(0, otpRemainingSeconds));
+
+    if (otpRemainingSeconds <= 0) {
+      clearInterval(otpTimer);
+      otpTimer = null;
+      if (verifyOtpBtn) verifyOtpBtn.disabled = true;
+    }
+  }, 1000);
+}
+
+function openOtpVerification(email, options = {}) {
+  pendingOtpEmail = email || pendingOtpEmail;
+
+  if (otpEmailLabel) {
+    otpEmailLabel.textContent = pendingOtpEmail || "your account";
+  }
+
+  showPanel("otp");
+  resetOtpInputs();
+  startOtpTimer(options.expiresIn || 300);
+
+  if (options.message) {
+    showMessage(options.message, options.type || "success");
+  }
+
+  if (options.devOtp) {
+    alert(`Your OTP is: ${options.devOtp}`);
+  }
+}
+
+otpInputs.forEach((input, index) => {
+  input.addEventListener("input", () => {
+    input.value = input.value.replace(/\D/g, "").slice(0, 1);
+
+    if (input.value && otpInputs[index + 1]) {
+      otpInputs[index + 1].removeAttribute("disabled");
+      otpInputs[index + 1].focus();
+    }
+
+    updateOtpButtonState();
+  });
+
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Backspace" && !input.value && otpInputs[index - 1]) {
+      input.setAttribute("disabled", "true");
+      otpInputs[index - 1].focus();
+      otpInputs[index - 1].value = "";
+      updateOtpButtonState();
+    }
+  });
+});
+
 document.querySelectorAll("[data-auth-tab]").forEach((button) => {
   button.addEventListener("click", () => {
     const tab = button.dataset.authTab;
 
-    document.querySelectorAll("[data-auth-tab]").forEach((item) => {
-      item.classList.toggle("active", item.dataset.authTab === tab);
-    });
-
-    if (loginForm) loginForm.classList.toggle("active", tab === "login");
-    if (registerForm) registerForm.classList.toggle("active", tab === "register");
-
-    if (authTitle) {
-      authTitle.textContent = tab === "login" ? "Login" : "Create an Account";
+    if (tab === "login" || tab === "register") {
+      showPanel(tab);
+      clearMessage();
     }
-
-    clearMessage();
   });
 });
 
@@ -178,9 +252,14 @@ if (loginForm) {
       window.location.replace(getRedirectPage(role));
     } catch (error) {
       const message = error.message || "Failed to login.";
+      const otpRequired = Boolean(error.data?.otp_required) || message.toLowerCase().includes("verify your otp");
 
-      if (message.toLowerCase().includes("verify your email")) {
-        showVerifyMessage(message, email);
+      if (otpRequired) {
+        openOtpVerification(error.data?.email || email, {
+          message: "Please verify your OTP before logging in. Click Request Again to generate a new OTP.",
+          type: "error",
+          expiresIn: 300
+        });
       } else {
         showMessage(message);
       }
@@ -194,14 +273,15 @@ if (registerForm) {
     clearMessage();
 
     const selectedRole = document.getElementById("registerRole").value;
+    const email = document.getElementById("registerEmail").value.trim();
 
     const payload = {
       full_name: document.getElementById("registerName").value.trim(),
-      email: document.getElementById("registerEmail").value.trim(),
+      email,
       password: document.getElementById("registerPassword").value,
       role: selectedRole,
       vendor_access_code: selectedRole === "vendor"
-        ? document.getElementById("vendorAccessCode").value.trim()
+        ? document.getElementById("vendorAccessCode")?.value.trim() || ""
         : ""
     };
 
@@ -213,21 +293,92 @@ if (registerForm) {
 
       registerForm.reset();
       toggleVendorAccessCodeField();
-      document.querySelector('[data-auth-tab="login"]')?.click();
 
-      showMessage(
-        data.message ||
-          "Account registered successfully. Please check your email to verify your account before logging in.",
-        "success"
-      );
+      openOtpVerification(data.email || email, {
+        message: data.message || "Account created. Enter the OTP to complete registration.",
+        type: "success",
+        devOtp: data.dev_otp,
+        expiresIn: data.expires_in || 300
+      });
     } catch (error) {
       showMessage(error.message || "Failed to register account.");
     }
   });
 }
 
-const urlParams = new URLSearchParams(window.location.search);
+if (otpForm) {
+  otpForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    clearMessage();
 
-if (urlParams.get("verified") === "1") {
-  showMessage("Email verified successfully. You can now log in.", "success");
+    const otp = getEnteredOtp();
+
+    if (!pendingOtpEmail) {
+      showMessage("No account email found for OTP verification.");
+      return;
+    }
+
+    if (otp.length !== 4) {
+      showMessage("Please enter the complete 4-digit OTP.");
+      return;
+    }
+
+    try {
+      const data = await api("/verify-otp", {
+        method: "POST",
+        body: JSON.stringify({
+          email: pendingOtpEmail,
+          otp
+        })
+      });
+
+      clearInterval(otpTimer);
+      otpTimer = null;
+      resetOtpInputs();
+      pendingOtpEmail = "";
+      showPanel("login");
+      showMessage(data.message || "OTP verified successfully. You can now log in.", "success");
+    } catch (error) {
+      showMessage(error.message || "OTP verification failed.");
+      resetOtpInputs();
+    }
+  });
+}
+
+if (requestOtpBtn) {
+  requestOtpBtn.addEventListener("click", async () => {
+    if (!pendingOtpEmail) {
+      showMessage("No account email found for OTP request.");
+      return;
+    }
+
+    try {
+      requestOtpBtn.disabled = true;
+      requestOtpBtn.textContent = "Generating...";
+
+      const data = await api("/request-otp", {
+        method: "POST",
+        body: JSON.stringify({ email: pendingOtpEmail })
+      });
+
+      openOtpVerification(data.email || pendingOtpEmail, {
+        message: data.message || "A new OTP has been generated.",
+        type: "success",
+        devOtp: data.dev_otp,
+        expiresIn: data.expires_in || 300
+      });
+    } catch (error) {
+      showMessage(error.message || "Failed to request OTP.");
+    } finally {
+      requestOtpBtn.disabled = false;
+      requestOtpBtn.textContent = "Request Again";
+    }
+  });
+}
+
+if (backToLoginBtn) {
+  backToLoginBtn.addEventListener("click", () => {
+    showPanel("login");
+    clearMessage();
+  });
 }

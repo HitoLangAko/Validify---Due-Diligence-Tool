@@ -68,6 +68,38 @@ Vendor accounts need an access code created by InfoSec before registration.
 
 <button class="submit-btn" type="submit">Create Account</button>
 </form>
+<section class="form-panel otp-panel" id="otpPanel">
+  <div class="otp-icon">
+    <i class="fa-solid fa-shield-halved"></i>
+  </div>
+  <h2>OTP Verification</h2>
+  <p class="otp-copy">
+    Enter the 4-digit verification code for
+    <strong id="otpEmailLabel">your account</strong>.
+  </p>
+  <p class="otp-timer">
+    The OTP will expire in <span id="otpExpire">0</span>s
+  </p>
+
+  <form id="otpForm">
+    <div class="otp-row" id="otpInputRow">
+      <input class="otp-input" type="text" inputmode="numeric" maxlength="1" autocomplete="one-time-code" />
+      <input class="otp-input" type="text" inputmode="numeric" maxlength="1" disabled />
+      <input class="otp-input" type="text" inputmode="numeric" maxlength="1" disabled />
+      <input class="otp-input" type="text" inputmode="numeric" maxlength="1" disabled />
+    </div>
+
+    <button class="submit-btn otp-submit-btn" id="verifyOtpBtn" type="submit" disabled>Verify OTP</button>
+  </form>
+
+  <p class="otp-resend-copy">
+    Didn't receive code?
+    <button type="button" id="requestOtpBtn" class="link-btn">Request Again</button>
+  </p>
+
+  <button type="button" id="backToLoginBtn" class="secondary-auth-btn">Back to Login</button>
+</section>
+
 </main>
 <script src="login.js"></script>
 </body>
