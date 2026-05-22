@@ -7,7 +7,7 @@
   <title>Validify Compliance Officer</title>
 
   <link rel="stylesheet" href="css/employee.css" />
-
+  <link rel="stylesheet" href="css/notifications.css">
   <link
     rel="stylesheet"
     href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
@@ -31,6 +31,11 @@
           <button class="nav-link" data-page="dashboard" data-roles="employee" type="button">
             <i class="fa-solid fa-house"></i>
             <span>Dashboard</span>
+          </button>
+
+          <button class="nav-link" data-page="vendors-due-diligence" data-roles="employee" type="button">
+            <i class="fa-solid fa-file-circle-check"></i>
+            <span>Vendors Due Diligence</span>
           </button>
 
           <button class="nav-link" data-page="add-vendor" data-roles="employee" type="button">
@@ -149,6 +154,26 @@
         </div>
 
         <div class="top-actions">
+          <div class="notif-wrapper" id="notifWrapper">
+            <button class="icon-button notif-bell" id="notifBell" aria-label="Notifications" aria-expanded="false">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18"
+                  viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+              </svg>
+              <span class="notif-badge" id="notifBadge" style="display:none;">0</span>
+            </button>
+            <div class="notif-dropdown hidden" id="notifDropdown">
+              <div class="notif-header">
+                <span>Notifications</span>
+                <button class="notif-mark-all" id="notifMarkAll">Mark all as read</button>
+              </div>
+              <ul class="notif-list" id="notifList"></ul>
+              <div class="notif-empty hidden" id="notifEmpty">No new notifications.</div>
+            </div>
+          </div>
+
           <button class="icon-button" type="button" id="darkModeBtn">
             <i class="fa-solid fa-moon"></i>
           </button>
@@ -239,6 +264,69 @@
                 <tr><td class="empty-cell">Loading...</td></tr>
               </tbody>
             </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="page" id="vendorsDueDiligencePage">
+        <div class="content-card vendor-dd-review-card">
+          <div class="section-header">
+            <h3>Vendors Due Diligence</h3>
+            <p>Select a vendor-created assessment to review the submitted Due Diligence and Information Security answers.</p>
+          </div>
+
+          <div class="field-group">
+            <label>Select Vendor Assessment</label>
+            <select id="vendorDueDiligenceSelect">
+              <option value="">Select vendor assessment</option>
+            </select>
+          </div>
+
+          <div class="assessment-meta-info vendor-dd-meta" id="vendorDueDiligenceMeta">
+            <div class="review-row">
+              <span class="review-label">Assessment ID</span>
+              <span class="review-value">—</span>
+            </div>
+            <div class="review-row">
+              <span class="review-label">Vendor</span>
+              <span class="review-value">—</span>
+            </div>
+            <div class="review-row">
+              <span class="review-label">Purpose</span>
+              <span class="review-value">—</span>
+            </div>
+            <div class="review-row">
+              <span class="review-label">Status</span>
+              <span class="status-pill status-pending">Pending</span>
+            </div>
+          </div>
+
+          <div class="review-tabs vendor-dd-tabs">
+            <button type="button" class="tab-button active" data-vendor-dd-tab="ddf">Due Diligence Form</button>
+            <button type="button" class="tab-button" data-vendor-dd-tab="is">Information Security</button>
+          </div>
+
+          <div id="vendorDdfPanel" class="vendor-dd-panel active">
+            <div id="vendorDdfBody" class="admin-ddf-review-wrap">
+              <p class="empty-cell">Select a vendor assessment to view Due Diligence answers.</p>
+            </div>
+          </div>
+
+          <div id="vendorIsPanel" class="vendor-dd-panel hidden">
+            <div id="vendorIsBody" class="admin-ddf-review-wrap">
+              <p class="empty-cell">Select a vendor assessment to view Information Security answers.</p>
+            </div>
+          </div>
+
+          <div class="field-group vendor-dd-decision-note">
+            <label>Employee Review Note</label>
+            <textarea id="vendorDueDiligenceDecisionNote" placeholder="Optional note for returning, rejecting, or approving the vendor submission."></textarea>
+          </div>
+
+          <div class="vendor-dd-actions">
+            <button type="button" class="clear-form-btn" id="returnVendorDueDiligenceBtn" disabled>Return to Vendor</button>
+            <button type="button" class="red-action-btn" id="rejectVendorDueDiligenceBtn" disabled>Reject</button>
+            <button type="button" class="submit-draft-btn" id="approveVendorDueDiligenceBtn" disabled>Approve for Department Review</button>
           </div>
         </div>
       </section>
@@ -894,5 +982,6 @@
   <div class="toast" id="toast"></div>
 
   <script src="js/employee.js"></script>
+  <script src="js/notifications.js"></script>
 </body>
 </html>

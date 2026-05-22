@@ -9,6 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
   <link rel="stylesheet" href="css/vendor.css" />
+  <link rel="stylesheet" href="css/notifications.css">
 </head>
 <body>
   <div class="app-container">
@@ -68,7 +69,6 @@
           </div>
         </nav>
       </div>
-
       <div class="sidebar-footer">
         <button class="vendor-account-button" type="button" id="vendorAccountToggle">
           <div class="vendor-account-left">
@@ -121,6 +121,25 @@
         <header class="top-bar">
           <h1 class="page-title">Dashboard</h1>
           <div class="header-actions">
+            <div class="notif-wrapper" id="notifWrapper">
+              <button class="icon-btn notif-bell" id="notifBell" aria-label="Notifications" aria-expanded="false">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18"
+                    viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                </svg>
+                <span class="notif-badge" id="notifBadge" style="display:none;">0</span>
+              </button>
+              <div class="notif-dropdown hidden" id="notifDropdown">
+                <div class="notif-header">
+                  <span>Notifications</span>
+                  <button class="notif-mark-all" id="notifMarkAll">Mark all as read</button>
+                </div>
+                <ul class="notif-list" id="notifList"></ul>
+                <div class="notif-empty hidden" id="notifEmpty">No new notifications.</div>
+              </div>
+            </div>
             <button class="icon-btn" id="darkModeBtn" type="button" aria-label="Toggle dark mode">
               <i class="fa-solid fa-moon"></i>
             </button>
@@ -328,5 +347,6 @@
   </div>
 
   <script src="js/vendor.js"></script>
+  <script src="js/notifications.js"></script>
 </body>
 </html>

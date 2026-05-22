@@ -5,10 +5,8 @@ const bcrypt = require("bcryptjs");
 const session = require("express-session");
 const path = require("path");
 const fs = require("fs");
-const crypto = require("crypto");
 const multer = require("multer");
 const ExcelJS = require("exceljs");
-const { Resend } = require("resend");
 require("dotenv").config();
 
 const app = express();
@@ -234,6 +232,8 @@ app.use((req, res, next) => {
 
 app.use(express.static("public"));
 
+app.get("/favicon.ico", (_req, res) => res.status(204).end());
+
 const uploadDir = path.join(__dirname, "public", "uploads");
 fs.mkdirSync(uploadDir, { recursive: true });
 
@@ -382,7 +382,7 @@ async function initDatabase() {
       email VARCHAR(150) NOT NULL UNIQUE,
       password_hash VARCHAR(255) NOT NULL,
       role ENUM('vendor', 'employee', 'it', 'infosec', 'management', 'dpo', 'hr', 'compliance') NOT NULL,
-      email_verified TINYINT(1) DEFAULT 0,
+      email_verified TINYINT(1) DEFAULT 1,
       verification_token_hash VARCHAR(255) NULL,
       verification_token_expires DATETIME NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -390,7 +390,7 @@ async function initDatabase() {
   `);
 
   
-  await addColumnIfMissing("users", "email_verified", "TINYINT(1) DEFAULT 0");
+  await addColumnIfMissing("users", "email_verified", "TINYINT(1) DEFAULT 1");
   await addColumnIfMissing("users", "verification_token_hash", "VARCHAR(255) NULL");
   await addColumnIfMissing("users", "verification_token_expires", "DATETIME NULL");
 
@@ -434,8 +434,14 @@ async function initDatabase() {
   `);
 
   await addColumnIfMissing("vendors", "user_id", "INT NULL");
+  await addColumnIfMissing("vendors", "company_website", "VARCHAR(255) NULL");
+  await addColumnIfMissing("vendors", "product_services_offered", "TEXT NULL");
+  await addColumnIfMissing("vendors", "contact_person_name", "VARCHAR(150) NULL");
+  await addColumnIfMissing("vendors", "contact_email", "VARCHAR(150) NULL");
+  await addColumnIfMissing("vendors", "contact_phone", "VARCHAR(50) NULL");
   await addColumnIfMissing("vendors", "created_by_user_id", "INT NULL");
   await addColumnIfMissing("vendors", "overall_status", "ENUM('Pending', 'In Review', 'Completed', 'Rejected') DEFAULT 'Pending'");
+  await addColumnIfMissing("vendors", "updated_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
 
   await runQuery(`
     CREATE TABLE IF NOT EXISTS department_reviews (
@@ -540,49 +546,21 @@ async function initDatabase() {
   await addColumnIfMissing("sign_offs", "created_by_user_id", "INT NULL");
   await addColumnIfMissing("sign_offs", "created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
 
-
+  console.log("Database tables checked.");
   await runQuery(`
-    CREATE TABLE IF NOT EXISTS vendor_registration_access (
-      access_id INT AUTO_INCREMENT PRIMARY KEY,
-      access_code VARCHAR(64) NOT NULL UNIQUE,
-      vendor_email VARCHAR(150) NULL,
-      company_name VARCHAR(150) NULL,
-      status VARCHAR(20) DEFAULT 'ACTIVE',
-      created_by_user_id INT NULL,
-      used_by_user_id INT NULL,
-      used_at DATETIME NULL,
-      expires_at DATETIME NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    CREATE TABLE IF NOT EXISTS notifications (
+      notification_id   INT AUTO_INCREMENT PRIMARY KEY,
+      recipient_user_id INT NOT NULL,
+      type              VARCHAR(50) NOT NULL,
+      title             VARCHAR(255) NOT NULL,
+      message           TEXT NOT NULL,
+      is_read           TINYINT(1) DEFAULT 0,
+      created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_recipient (recipient_user_id),
+      INDEX idx_unread (recipient_user_id, is_read)
     )
   `);
-
-  await addColumnIfMissing("vendor_registration_access", "vendor_email", "VARCHAR(150) NULL");
-  await addColumnIfMissing("vendor_registration_access", "company_name", "VARCHAR(150) NULL");
-  await addColumnIfMissing("vendor_registration_access", "status", "VARCHAR(20) DEFAULT 'ACTIVE'");
-  await addColumnIfMissing("vendor_registration_access", "created_by_user_id", "INT NULL");
-  await addColumnIfMissing("vendor_registration_access", "used_by_user_id", "INT NULL");
-  await addColumnIfMissing("vendor_registration_access", "used_at", "DATETIME NULL");
-  await addColumnIfMissing("vendor_registration_access", "expires_at", "DATETIME NULL");
-
-  try {
-    await runQuery(`
-      ALTER TABLE vendor_registration_access
-      MODIFY status VARCHAR(20) DEFAULT 'ACTIVE'
-    `);
-  } catch (error) {
-    console.log("Skipping vendor access status migration:", error.message);
-  }
-
-  try {
-    await runQuery(`
-      ALTER TABLE vendor_registration_access
-      MODIFY created_by_user_id INT NULL
-    `);
-  } catch (error) {
-    console.log("Skipping vendor access creator migration:", error.message);
-  }
-
-  console.log("Database tables checked.");
+ 
 }
 
 initDatabase().catch((error) => {
@@ -609,27 +587,6 @@ function flattenQuestionsForRole(role) {
 function makeAssessmentCode(assessmentId) {
   return `VA-${String(assessmentId).padStart(3, "0")}`;
 }
-
-
-function makeVendorAccessCode() {
-  const raw = crypto.randomBytes(5).toString("hex").toUpperCase();
-  return `VND-${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8, 10)}`;
-}
-
-async function createUniqueVendorAccessCode() {
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    const code = makeVendorAccessCode();
-    const existing = await runQuery(
-      "SELECT access_id FROM vendor_registration_access WHERE access_code = ? LIMIT 1",
-      [code]
-    );
-
-    if (!existing.length) return code;
-  }
-
-  throw new Error("Failed to generate a unique vendor access code.");
-}
-
 
 async function ensureDepartmentAssessment(assessmentId, departmentRole, statusWhenNew = "Pending") {
   const existing = await runQuery(
@@ -715,209 +672,56 @@ async function updateMainAssessmentStatus(assessmentId) {
   );
 }
 
+ 
+/**
+ * Send a notification to one or more users.
+ *
+ * @param {number|number[]} recipientUserIds  - Single user_id or array of user_ids
+ * @param {string}          type              - Short event key e.g. 'vendor_registered'
+ * @param {string}          title             - Short heading shown in the bell dropdown
+ * @param {string}          message           - Full description shown below the heading
+ */
+async function createNotification(recipientUserIds, type, title, message) {
+  const ids = Array.isArray(recipientUserIds) ? recipientUserIds : [recipientUserIds];
+  
+  // FIX: Safely parse IDs to integers to prevent string/number type mismatches from aborting the notification.
+  const validIds = ids
+    .map((id) => parseInt(id, 10))
+    .filter((id) => !isNaN(id) && id > 0);
 
-app.get("/question-bank", requireAnyRole(["vendor", "employee", ...departmentRoles]), (_req, res) => {
-  res.json({
-    due_diligence: [
-      { section_name: "Vendor Information", questions: vendorInformationQuestions },
-      { section_name: "Consumer", questions: consumerQuestions },
-      { section_name: "IT Risk Management", questions: departmentQuestionGroups.it[0].questions },
-      { section_name: "Compliance", questions: departmentQuestionGroups.compliance[0].questions },
-      { section_name: "Resiliency", questions: resiliencyQuestions },
-      { section_name: "Data Privacy", questions: departmentQuestionGroups.dpo[0].questions },
-      { section_name: "Environmental and Social Risk Management", questions: departmentQuestionGroups.hr[0].questions }
-    ],
-    information_security: [
-      { section_name: "Information Security", questions: departmentQuestionGroups.infosec[0].questions }
-    ]
-  });
-});
-
-/* INFOSEC VENDOR REGISTRATION ACCESS ROUTES */
-
-app.get("/infosec/vendor-access", requireRole("infosec"), async (_req, res) => {
+  if (validIds.length === 0) return;
+ 
   try {
+    const values = validIds.map((id) => [id, type, title, message]);
+    await runQuery(
+      `INSERT INTO notifications (recipient_user_id, type, title, message) VALUES ?`,
+      [values]
+    );
+  } catch (error) {
+    // Notifications are non-critical — log but never crash the main action
+    console.error("createNotification error:", error.message);
+  }
+}
+/**
+ * Fetch all user_ids with a specific role (used to broadcast to all employees, etc.)
+ *
+ * @param {string|string[]} roles
+ * @returns {Promise<number[]>}
+ */
+async function getUserIdsByRole(roles) {
+  const roleList = Array.isArray(roles) ? roles : [roles];
+  if (roleList.length === 0) return [];
+ 
+  try {
+    const placeholders = roleList.map(() => "?").join(", ");
     const rows = await runQuery(
-      `
-        SELECT
-          vra.access_id,
-          vra.access_code,
-          vra.vendor_email,
-          vra.company_name,
-          vra.status,
-          vra.expires_at,
-          vra.created_at,
-          vra.used_at,
-          creator.full_name AS created_by,
-          used_user.full_name AS used_by
-        FROM vendor_registration_access vra
-        LEFT JOIN users creator ON vra.created_by_user_id = creator.user_id
-        LEFT JOIN users used_user ON vra.used_by_user_id = used_user.user_id
-        ORDER BY vra.created_at DESC
-      `
+      `SELECT user_id FROM users WHERE role IN (${placeholders})`,
+      roleList
     );
-
-    res.json(rows);
+    return rows.map((row) => row.user_id);
   } catch (error) {
-    console.error("Fetch vendor access codes error:", error);
-    res.status(500).json({ message: error.sqlMessage || "Failed to load vendor access codes." });
-  }
-});
-
-app.post("/infosec/vendor-access", requireRole("infosec"), async (req, res) => {
-  const vendorEmail = String(req.body.vendor_email || "").trim().toLowerCase();
-  const companyName = String(req.body.company_name || "").trim();
-  const rawExpiresAt = String(req.body.expires_at || "").trim();
-
-  if (!vendorEmail) {
-    return res.status(400).json({ message: "Vendor email is required." });
-  }
-
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(vendorEmail)) {
-    return res.status(400).json({ message: "Please enter a valid vendor email address." });
-  }
-
-  let expiresAt = null;
-  if (rawExpiresAt) {
-    // HTML date inputs return YYYY-MM-DD. MySQL DATETIME accepts YYYY-MM-DD 23:59:59.
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(rawExpiresAt)) {
-      return res.status(400).json({ message: "Expiration date must use YYYY-MM-DD format." });
-    }
-    expiresAt = `${rawExpiresAt} 23:59:59`;
-  }
-
-  try {
-    const code = await createUniqueVendorAccessCode();
-
-    const result = await runQuery(
-      `
-        INSERT INTO vendor_registration_access
-        (access_code, vendor_email, company_name, expires_at, created_by_user_id, status)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `,
-      [
-        code,
-        vendorEmail,
-        companyName || null,
-        expiresAt,
-        req.session.user.user_id || null,
-        "ACTIVE"
-      ]
-    );
-
-    const rows = await runQuery(
-      `
-        SELECT
-          access_id,
-          access_code,
-          vendor_email,
-          company_name,
-          status,
-          expires_at,
-          created_at
-        FROM vendor_registration_access
-        WHERE access_id = ?
-      `,
-      [result.insertId]
-    );
-
-    res.json({
-      message: "Vendor registration access code created.",
-      access: rows[0]
-    });
-  } catch (error) {
-    console.error("Create vendor access code error:", error);
-    res.status(500).json({
-      message: error.sqlMessage || error.message || "Failed to create vendor access code."
-    });
-  }
-});
-
-app.patch("/infosec/vendor-access/:access_id/revoke", requireRole("infosec"), async (req, res) => {
-  const accessId = req.params.access_id;
-
-  try {
-    const result = await runQuery(
-      `
-        UPDATE vendor_registration_access
-        SET status = 'REVOKED'
-        WHERE access_id = ?
-        AND UPPER(status) = 'ACTIVE'
-      `,
-      [accessId]
-    );
-
-    if (result.affectedRows === 0) {
-      return res.status(400).json({ message: "Access code cannot be revoked or was already used." });
-    }
-
-    res.json({ message: "Vendor access code revoked." });
-  } catch (error) {
-    console.error("Revoke vendor access code error:", error);
-    res.status(500).json({ message: error.sqlMessage || "Failed to revoke vendor access code." });
-  }
-});
-
-
-function createVerificationToken() {
-  const token = crypto.randomBytes(32).toString("hex");
-  const tokenHash = crypto
-    .createHash("sha256")
-    .update(token)
-    .digest("hex");
-
-  return { token, tokenHash };
-}
-
-function hashVerificationToken(token) {
-  return crypto
-    .createHash("sha256")
-    .update(token)
-    .digest("hex");
-}
-
-function getAppBaseUrl() {
-  return process.env.APP_BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
-}
-
-function getResendClient() {
-  if (!process.env.RESEND_API_KEY) {
-    throw new Error("RESEND_API_KEY is missing in .env");
-  }
-
-  return new Resend(process.env.RESEND_API_KEY);
-}
-
-async function sendVerificationEmail(email, token) {
-  const verifyUrl = `${getAppBaseUrl()}/verify-email?token=${encodeURIComponent(token)}`;
-  const resend = getResendClient();
-
-  const { error } = await resend.emails.send({
-    from: process.env.MAIL_FROM || "Validify <onboarding@resend.dev>",
-    to: email,
-    subject: "Verify your Validify account",
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 620px; margin: auto; color: #111827; line-height: 1.55;">
-        <h2 style="margin-bottom: 10px;">Verify your Validify account</h2>
-        <p>Thank you for registering in Validify.</p>
-        <p>Please click the button below to verify your email address before logging in.</p>
-
-        <p style="margin: 28px 0;">
-          <a href="${verifyUrl}"
-             style="background:#2f66e8;color:#ffffff;text-decoration:none;padding:14px 22px;border-radius:10px;font-weight:bold;display:inline-block;">
-            Verify Email
-          </a>
-        </p>
-
-        <p>If the button does not work, copy and paste this link into your browser:</p>
-        <p style="word-break: break-all; color:#2563eb;">${verifyUrl}</p>
-        <p>This verification link will expire in 24 hours.</p>
-      </div>
-    `
-  });
-
-  if (error) {
-    throw new Error(error.message || "Failed to send verification email.");
+    console.error("getUserIdsByRole error:", error.message);
+    return [];
   }
 }
 
@@ -925,12 +729,6 @@ async function sendVerificationEmail(email, token) {
 
 app.post("/register", async (req, res) => {
   const { full_name, email, password, role } = req.body;
-  const vendorAccessCode = String(
-    req.body.vendor_access_code ||
-    req.body.vendorAccessCode ||
-    req.body.access_code ||
-    ""
-  ).trim().toUpperCase();
 
   if (!full_name || !email || !password || !role) {
     return res.status(400).json({ message: "Please fill in all fields." });
@@ -940,168 +738,42 @@ app.post("/register", async (req, res) => {
     return res.status(400).json({ message: "Invalid role selected." });
   }
 
-  if (role === "vendor" && !vendorAccessCode) {
-    return res.status(400).json({
-      message: "Vendor registration requires an access code from InfoSec."
-    });
-  }
-
   try {
-    const cleanEmail = String(email).trim().toLowerCase();
-    let accessRecord = null;
-
-    if (role === "vendor") {
-      const accessRows = await runQuery(
-        `
-          SELECT *
-          FROM vendor_registration_access
-          WHERE UPPER(access_code) = ?
-          LIMIT 1
-        `,
-        [vendorAccessCode]
-      );
-
-      if (!accessRows.length) {
-        return res.status(403).json({
-          message: "Invalid vendor access code. Please request access from InfoSec."
-        });
-      }
-
-      accessRecord = accessRows[0];
-
-      if (String(accessRecord.status || "").toUpperCase() !== "ACTIVE") {
-        return res.status(403).json({
-          message: "This vendor access code is already used or no longer active."
-        });
-      }
-
-      if (accessRecord.expires_at && new Date(accessRecord.expires_at) < new Date()) {
-        await runQuery(
-          "UPDATE vendor_registration_access SET status = 'REVOKED' WHERE access_id = ?",
-          [accessRecord.access_id]
-        );
-
-        return res.status(403).json({
-          message: "This vendor access code has expired. Please request a new one from InfoSec."
-        });
-      }
-
-      if (
-        accessRecord.vendor_email &&
-        String(accessRecord.vendor_email).trim().toLowerCase() !== cleanEmail
-      ) {
-        return res.status(403).json({
-          message: "This vendor access code is assigned to a different email address."
-        });
-      }
-    }
-
-    const existingUser = await runQuery(
-      `SELECT user_id FROM users WHERE email = ? LIMIT 1`,
-      [cleanEmail]
-    );
-
-    if (existingUser.length) {
-      return res.status(400).json({ message: "Email already exists." });
-    }
-
     const passwordHash = await bcrypt.hash(password, 10);
-    const { token, tokenHash } = createVerificationToken();
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-    const result = await runQuery(
+    await runQuery(
       `
         INSERT INTO users
         (full_name, email, password_hash, role, email_verified, verification_token_hash, verification_token_expires)
-        VALUES (?, ?, ?, ?, 0, ?, ?)
+        VALUES (?, ?, ?, ?, 1, NULL, NULL)
       `,
-      [full_name, cleanEmail, passwordHash, role, tokenHash, expiresAt]
+      [full_name, email, passwordHash, role]
     );
-
-    let createdVendorId = null;
-
-    if (role === "vendor" && accessRecord) {
-      await runQuery(
-        `
-          UPDATE vendor_registration_access
-          SET status = 'USED',
-              used_by_user_id = ?,
-              used_at = CURRENT_TIMESTAMP
-          WHERE access_id = ?
-        `,
-        [result.insertId, accessRecord.access_id]
-      );
-
-      if (accessRecord.company_name) {
-        const vendorInsert = await runQuery(
-          `
-            INSERT INTO vendors
-            (user_id, company_name, contact_person_name, contact_email, created_by_user_id, overall_status)
-            VALUES (?, ?, ?, ?, ?, 'Pending')
-          `,
-          [
-            result.insertId,
-            accessRecord.company_name,
-            full_name,
-            cleanEmail,
-            result.insertId
-          ]
-        );
-
-        createdVendorId = vendorInsert.insertId;
-      }
-    }
-
-    try {
-      await sendVerificationEmail(cleanEmail, token);
-    } catch (emailError) {
-      console.error("Verification email send error:", emailError);
-
-      if (createdVendorId) {
-        await runQuery(`DELETE FROM vendors WHERE vendor_id = ?`, [createdVendorId]);
-      }
-
-      await runQuery(`DELETE FROM users WHERE user_id = ?`, [result.insertId]);
-
-      if (role === "vendor" && accessRecord) {
-        await runQuery(
-          `
-            UPDATE vendor_registration_access
-            SET status = 'ACTIVE', used_by_user_id = NULL, used_at = NULL
-            WHERE access_id = ?
-          `,
-          [accessRecord.access_id]
-        );
-      }
-
-      return res.status(500).json({
-        message: emailError.message || "Failed to send verification email."
-      });
-    }
-
-    res.json({
-      message: role === "vendor"
-        ? "Vendor account registered successfully. Please check your email to verify your account before logging in."
-        : "Account registered successfully. Please check your email to verify your account before logging in."
-    });
+  if (role === "vendor") {
+    const employeeIds = await getUserIdsByRole("employee");
+    await createNotification(
+      employeeIds,
+      "vendor_registered",
+      "New Vendor Registered",
+      `A new vendor account has been created by ${full_name} (${email}). Awaiting due diligence submission.`
+    );
+  }
+    res.json({ message: "Account registered successfully. You can now log in." });
   } catch (error) {
     if (error.code === "ER_DUP_ENTRY") {
-      return res.status(400).json({ message: "Email already exists or access code already exists." });
+      return res.status(400).json({ message: "Email already exists." });
     }
 
     console.error("Register error:", error);
-    res.status(500).json({ message: error.sqlMessage || error.message || "Failed to register account." });
+    res.status(500).json({ message: "Failed to register account." });
   }
 });
-
 
 app.post("/login", async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    const cleanEmail = String(email || "").trim().toLowerCase();
-
-    const results = await runQuery("SELECT * FROM users WHERE email = ?", [cleanEmail]);
+    const results = await runQuery("SELECT * FROM users WHERE email = ?", [email]);
 
     if (results.length === 0) {
       return res.status(401).json({ message: "Invalid email or password." });
@@ -1114,12 +786,6 @@ app.post("/login", async (req, res) => {
       return res.status(401).json({ message: "Invalid email or password." });
     }
 
-    if (Number(user.email_verified) !== 1) {
-      return res.status(403).json({
-        message: "Please verify your email before logging in."
-      });
-    }
-
     req.session.user = {
       user_id: user.user_id,
       full_name: user.full_name,
@@ -1130,7 +796,7 @@ app.post("/login", async (req, res) => {
     res.json({ message: "Login successful.", user: req.session.user });
   } catch (error) {
     console.error("Login error:", error);
-    res.status(500).json({ message: error.sqlMessage || error.message || "Login failed." });
+    res.status(500).json({ message: "Login failed." });
   }
 });
 
@@ -1175,7 +841,80 @@ app.get("/me", async (req, res) => {
     res.status(500).json({ message: "Failed to load user profile." });
   }
 });
-
+app.get("/notifications", async (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).json({ message: "Not logged in." });
+  }
+ 
+  try {
+    const notifications = await runQuery(
+      `
+        SELECT
+          notification_id,
+          type,
+          title,
+          message,
+          is_read,
+          created_at
+        FROM notifications
+        WHERE recipient_user_id = ?
+        ORDER BY is_read ASC, created_at DESC
+        LIMIT 50
+      `,
+      [req.session.user.user_id]
+    );
+ 
+    res.json({ notifications });
+  } catch (error) {
+    console.error("Fetch notifications error:", error);
+    res.status(500).json({ message: "Failed to load notifications." });
+  }
+});
+ 
+// POST /notifications/:id/read
+// Mark one notification as read
+app.post("/notifications/:id/read", async (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).json({ message: "Not logged in." });
+  }
+ 
+  try {
+    await runQuery(
+      `
+        UPDATE notifications
+        SET is_read = 1
+        WHERE notification_id = ?
+        AND recipient_user_id = ?
+      `,
+      [req.params.id, req.session.user.user_id]
+    );
+ 
+    res.json({ message: "Notification marked as read." });
+  } catch (error) {
+    console.error("Mark notification read error:", error);
+    res.status(500).json({ message: "Failed to mark notification as read." });
+  }
+});
+ 
+// POST /notifications/read-all
+// Mark ALL notifications as read for the logged-in user
+app.post("/notifications/read-all", async (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).json({ message: "Not logged in." });
+  }
+ 
+  try {
+    await runQuery(
+      `UPDATE notifications SET is_read = 1 WHERE recipient_user_id = ?`,
+      [req.session.user.user_id]
+    );
+ 
+    res.json({ message: "All notifications marked as read." });
+  } catch (error) {
+    console.error("Mark all notifications read error:", error);
+    res.status(500).json({ message: "Failed to mark all notifications as read." });
+  }
+});
 app.post("/profile", upload.single("profile_photo"), async (req, res) => {
   if (!req.session.user) {
     return res.status(401).json({ message: "Not logged in." });
@@ -1265,110 +1004,6 @@ app.post("/profile", upload.single("profile_photo"), async (req, res) => {
   } catch (error) {
     console.error("Update profile error:", error);
     res.status(500).json({ message: "Failed to update profile." });
-  }
-});
-
-app.post("/resend-verification", async (req, res) => {
-  const cleanEmail = String(req.body.email || "").trim().toLowerCase();
-
-  if (!cleanEmail) {
-    return res.status(400).json({ message: "Email is required." });
-  }
-
-  try {
-    const rows = await runQuery(
-      `
-        SELECT user_id, email, email_verified
-        FROM users
-        WHERE email = ?
-        LIMIT 1
-      `,
-      [cleanEmail]
-    );
-
-    if (!rows.length) {
-      return res.status(404).json({ message: "Account not found." });
-    }
-
-    const user = rows[0];
-
-    if (Number(user.email_verified) === 1) {
-      return res.status(400).json({ message: "This account is already verified." });
-    }
-
-    const { token, tokenHash } = createVerificationToken();
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-
-    await runQuery(
-      `
-        UPDATE users
-        SET verification_token_hash = ?,
-            verification_token_expires = ?
-        WHERE user_id = ?
-      `,
-      [tokenHash, expiresAt, user.user_id]
-    );
-
-    await sendVerificationEmail(cleanEmail, token);
-
-    res.json({ message: "Verification email resent. Please check your inbox." });
-  } catch (error) {
-    console.error("Resend verification error:", error);
-    res.status(500).json({
-      message: error.sqlMessage || error.message || "Failed to resend verification email."
-    });
-  }
-});
-
-app.get("/verify-email", async (req, res) => {
-  const { token } = req.query;
-
-  if (!token) {
-    return res.status(400).send("Invalid verification link.");
-  }
-
-  try {
-    const tokenHash = hashVerificationToken(String(token));
-
-    const rows = await runQuery(
-      `
-        SELECT user_id, email_verified, verification_token_expires
-        FROM users
-        WHERE verification_token_hash = ?
-        LIMIT 1
-      `,
-      [tokenHash]
-    );
-
-    if (!rows.length) {
-      return res.status(400).send("Invalid or expired verification link.");
-    }
-
-    const user = rows[0];
-
-    if (Number(user.email_verified) === 1) {
-      return res.redirect("/login.html?verified=1");
-    }
-
-    if (!user.verification_token_expires || new Date(user.verification_token_expires) < new Date()) {
-      return res.status(400).send("Verification link expired. Please register again or request a new link.");
-    }
-
-    await runQuery(
-      `
-        UPDATE users
-        SET email_verified = 1,
-            verification_token_hash = NULL,
-            verification_token_expires = NULL
-        WHERE user_id = ?
-      `,
-      [user.user_id]
-    );
-
-    res.redirect("/login.html?verified=1");
-  } catch (error) {
-    console.error("Verify email error:", error);
-    res.status(500).send("Failed to verify email.");
   }
 });
 
@@ -1700,8 +1335,8 @@ app.get("/department/assessments/:assessment_id", requireAnyRole(["employee", ..
       return res.status(404).json({ message: "Vendor assessment not found." });
     }
 
+    // 1. Get the department's specific assessment and answers (for their comments/review)
     const departmentAssessment = await ensureDepartmentAssessment(assessmentId, departmentRole, "Pending");
-
     const answers = await runQuery(
       `
         SELECT *
@@ -1712,10 +1347,30 @@ app.get("/department/assessments/:assessment_id", requireAnyRole(["employee", ..
       [departmentAssessment.department_assessment_id]
     );
 
+    // 2. Fetch the vendor's submitted answers (stored under the 'employee' department_assessment)
+    let vendorAnswers = [];
+    const employeeAssessmentRow = await runQuery(
+      `SELECT department_assessment_id FROM department_assessments WHERE assessment_id = ? AND department_role = 'employee' LIMIT 1`,
+      [assessmentId]
+    );
+
+    if (employeeAssessmentRow.length > 0) {
+      vendorAnswers = await runQuery(
+        `
+          SELECT section_name, question_index, question_text, response, explanation, artifact_name, artifact_path
+          FROM department_answers
+          WHERE department_assessment_id = ?
+          ORDER BY question_index
+        `,
+        [employeeAssessmentRow[0].department_assessment_id]
+      );
+    }
+
     res.json({
       assessment: assessmentRows[0],
       department_assessment: departmentAssessment,
-      answers,
+      answers, // The department's draft answers/comments
+      vendor_answers: vendorAnswers, // The read-only vendor submission
       questions: flattenQuestionsForRole(departmentRole)
     });
   } catch (error) {
@@ -1842,6 +1497,30 @@ app.post("/department/assessments/:assessment_id/submit", requireAnyRole(["emplo
         ]
       );
     }
+// ADD THIS NOTIFICATION TRIGGER FOR INFOSEC & ALL DEPARTMENTS
+    if (departmentRole === "infosec") {
+      // Find the vendor's user_id to notify them
+      const vRows = await runQuery(`SELECT user_id FROM vendors WHERE vendor_id = ?`, [assessmentRows[0].vendor_id]);
+      if (vRows.length > 0 && vRows[0].user_id) {
+        await createNotification(
+          vRows[0].user_id,
+          "infosec_approved",
+          "InfoSec Review Completed",
+          "Information Security has completed the review of your due diligence submission."
+        );
+      }
+    }
+    
+    // Optional: Notify employee that a department submitted their form
+    if (departmentRole !== "employee") {
+      const empIds = await getUserIdsByRole("employee");
+      await createNotification(
+        empIds,
+        "dept_reviewed",
+        "Department Review Completed",
+        `${roleLabels[departmentRole] || departmentRole} has submitted their review for assessment ${assessmentRows[0].assessment_code}.`
+      );
+    }
 
     await updateMainAssessmentStatus(assessmentId);
 
@@ -1962,12 +1641,19 @@ app.post("/department/signoff", requireDepartment, upload.single("signature"), a
         req.session.user.user_id
       ]
     );
-
+    const employeeIds = await getUserIdsByRole("employee");
+    await createNotification(
+      employeeIds,
+      "dept_signoff",
+      "Department Sign-off",
+      `${roleName} has submitted a sign-off (${status}) for assessment ID: ${assessment_id}.`
+    );
     res.json({ message: "Sign-off saved." });
   } catch (error) {
     console.error("Save signoff error:", error);
     res.status(500).json({ message: "Failed to save sign-off." });
   }
+  
 });
 
 /* LEGACY DEPARTMENT REVIEW ROUTES */
@@ -2464,7 +2150,12 @@ app.post("/admin/assessments/:assessment_id/decision", requireRole("employee"), 
   }
 
   try {
-    const rows = await runQuery("SELECT * FROM vendor_assessments WHERE assessment_id = ?", [assessmentId]);
+    const rows = await runQuery(`
+      SELECT va.*, v.user_id AS vendor_user_id 
+      FROM vendor_assessments va
+      JOIN vendors v ON va.vendor_id = v.vendor_id
+      WHERE va.assessment_id = ?
+    `, [assessmentId]);
 
     if (!rows.length) {
       return res.status(404).json({ message: "Vendor assessment not found." });
@@ -2479,6 +2170,16 @@ app.post("/admin/assessments/:assessment_id/decision", requireRole("employee"), 
       `UPDATE vendors SET overall_status = ? WHERE vendor_id = ?`,
       [decision === "Approved" ? "Completed" : "Rejected", rows[0].vendor_id]
     );
+
+    // ADD THIS NOTIFICATION TRIGGER:
+    if (rows[0].vendor_user_id) {
+      await createNotification(
+        rows[0].vendor_user_id,
+        "final_decision",
+        `Final Decision: ${decision}`,
+        `Your vendor assessment (${rows[0].assessment_code}) has been marked as ${decision}.`
+      );
+    }
 
     res.json({ message: `Assessment ${decision.toLowerCase()} successfully.` });
   } catch (error) {
@@ -3285,6 +2986,133 @@ const vendorSectionMeta = {
   infosec: { section_name: "Information Security", offset: 700 }
 };
 
+const vendorPortalQuestionBank = {
+  vendor_info: {
+    title: "Vendor Information Section",
+    breadcrumb: "Due Diligence Form / Vendor Information",
+    questions: vendorInformationQuestions
+  },
+  consumer: {
+    title: "Consumer Protection",
+    breadcrumb: "Due Diligence Form / Consumer",
+    questions: consumerQuestions
+  },
+  it_risk: {
+    title: "IT Risk Management",
+    breadcrumb: "Due Diligence Form / IT Risk Management",
+    questions: departmentQuestionGroups.it[0].questions
+  },
+  compliance: {
+    title: "Compliance & Governance",
+    breadcrumb: "Due Diligence Form / Compliance",
+    questions: departmentQuestionGroups.compliance[0].questions
+  },
+  resiliency: {
+    title: "Business Resiliency & BCP",
+    breadcrumb: "Due Diligence Form / Resiliency",
+    questions: resiliencyQuestions
+  },
+  data_privacy: {
+    title: "Data Privacy & Protection",
+    breadcrumb: "Due Diligence Form / Data Privacy",
+    questions: departmentQuestionGroups.dpo[0].questions
+  },
+  environmental: {
+    title: "Environmental & Social Risk",
+    breadcrumb: "Due Diligence Form / Environmental & Social Risk",
+    questions: departmentQuestionGroups.hr[0].questions
+  },
+  infosec: {
+    title: "Information Security Questionnaire",
+    breadcrumb: "Information Security / Form for IS",
+    questions: departmentQuestionGroups.infosec[0].questions
+  }
+};
+
+const vendorDdfSequence = [
+  "vendor_info",
+  "consumer",
+  "it_risk",
+  "compliance",
+  "resiliency",
+  "data_privacy",
+  "environmental"
+];
+
+const vendorSubmissionSequence = [...vendorDdfSequence, "infosec"];
+
+function getVendorPortalQuestionBankResponse() {
+  return {
+    due_diligence: vendorDdfSequence.map((sectionKey) => ({
+      section_key: sectionKey,
+      section_name: vendorSectionMeta[sectionKey].section_name,
+      title: vendorPortalQuestionBank[sectionKey].title,
+      breadcrumb: vendorPortalQuestionBank[sectionKey].breadcrumb,
+      questions: vendorPortalQuestionBank[sectionKey].questions
+    })),
+    information_security: [
+      {
+        section_key: "infosec",
+        section_name: vendorSectionMeta.infosec.section_name,
+        title: vendorPortalQuestionBank.infosec.title,
+        breadcrumb: vendorPortalQuestionBank.infosec.breadcrumb,
+        questions: vendorPortalQuestionBank.infosec.questions
+      }
+    ]
+  };
+}
+
+async function findMissingVendorSubmissionItems(employeeDepartmentAssessmentId) {
+  const rows = await runQuery(
+    `
+      SELECT
+        section_name,
+        question_index,
+        response,
+        explanation,
+        artifact_path,
+        artifact_name
+      FROM department_answers
+      WHERE department_assessment_id = ?
+    `,
+    [employeeDepartmentAssessmentId]
+  );
+
+  const answerMap = new Map();
+
+  rows.forEach((row) => {
+    answerMap.set(`${normalizeSectionName(row.section_name)}|${Number(row.question_index)}`, row);
+  });
+
+  const missing = [];
+
+  vendorSubmissionSequence.forEach((sectionKey) => {
+    const meta = vendorSectionMeta[sectionKey];
+    const questions = vendorPortalQuestionBank[sectionKey]?.questions || [];
+
+    questions.forEach((questionText, localIndex) => {
+      const dbIndex = Number(meta.offset || 0) + Number(localIndex);
+      const saved = answerMap.get(`${normalizeSectionName(meta.section_name)}|${dbIndex}`);
+
+      if (
+        !saved ||
+        !String(saved.response || "").trim() ||
+        !String(saved.explanation || "").trim() ||
+        !(saved.artifact_path || saved.artifact_name)
+      ) {
+        missing.push({
+          section_key: sectionKey,
+          section_name: meta.section_name,
+          question_index: localIndex,
+          question_text: questionText
+        });
+      }
+    });
+  });
+
+  return missing;
+}
+
 function vendorSectionKeyFromName(sectionName) {
   const normalized = normalizeSectionName(sectionName);
   const found = Object.entries(vendorSectionMeta).find(([, meta]) => {
@@ -3293,6 +3121,10 @@ function vendorSectionKeyFromName(sectionName) {
 
   return found ? found[0] : null;
 }
+
+app.get("/question-bank", requireAnyRole(["vendor", "employee", ...departmentRoles]), (_req, res) => {
+  res.json(getVendorPortalQuestionBankResponse());
+});
 
 async function getVendorOwnedAssessment(userId, assessmentId) {
   const rows = await runQuery(
@@ -3425,7 +3257,7 @@ app.get("/vendor/dashboard", requireVendor, async (req, res) => {
   }
 });
 
-app.post("/vendor/vendors", requireVendor, async (req, res) => {
+app.post("/vendor/vendors", requireRole("vendor"), async (req, res) => {
   const {
     company_name,
     company_website,
@@ -3435,29 +3267,31 @@ app.post("/vendor/vendors", requireVendor, async (req, res) => {
     contact_phone
   } = req.body;
 
-  if (!company_name || !product_services_offered || !contact_person_name || !contact_email || !contact_phone) {
-    return res.status(400).json({ message: "Company name, services, contact person, email, and phone are required." });
+  if (!company_name || !product_services_offered || !contact_person_name) {
+    return res.status(400).json({
+      message: "Company name, services offered, and contact person are required."
+    });
   }
 
   try {
     const userId = req.session.user.user_id;
 
-    const duplicateRows = await runQuery(
+    const existing = await runQuery(
       `
         SELECT vendor_id
         FROM vendors
         WHERE user_id = ?
-        AND LOWER(company_name) = LOWER(?)
         LIMIT 1
       `,
-      [userId, company_name]
+      [userId]
     );
 
-    if (duplicateRows.length) {
+    if (existing.length) {
       await runQuery(
         `
           UPDATE vendors
           SET
+            company_name = ?,
             company_website = ?,
             product_services_offered = ?,
             contact_person_name = ?,
@@ -3465,29 +3299,38 @@ app.post("/vendor/vendors", requireVendor, async (req, res) => {
             contact_phone = ?,
             updated_at = CURRENT_TIMESTAMP
           WHERE vendor_id = ?
-          AND user_id = ?
         `,
         [
+          company_name,
           company_website || null,
           product_services_offered,
           contact_person_name,
-          contact_email,
-          contact_phone,
-          duplicateRows[0].vendor_id,
-          userId
+          contact_email || null,
+          contact_phone || null,
+          existing[0].vendor_id
         ]
       );
 
       return res.json({
-        message: "Vendor credentials updated.",
-        vendor_id: duplicateRows[0].vendor_id
+        message: "Vendor credentials updated successfully.",
+        vendor_id: existing[0].vendor_id
       });
     }
 
     const result = await runQuery(
       `
         INSERT INTO vendors
-        (user_id, company_name, company_website, product_services_offered, contact_person_name, contact_email, contact_phone, created_by_user_id, overall_status)
+        (
+          user_id,
+          company_name,
+          company_website,
+          product_services_offered,
+          contact_person_name,
+          contact_email,
+          contact_phone,
+          created_by_user_id,
+          overall_status
+        )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Pending')
       `,
       [
@@ -3496,19 +3339,21 @@ app.post("/vendor/vendors", requireVendor, async (req, res) => {
         company_website || null,
         product_services_offered,
         contact_person_name,
-        contact_email,
-        contact_phone,
+        contact_email || null,
+        contact_phone || null,
         userId
       ]
     );
 
     res.json({
-      message: "Vendor credentials saved.",
+      message: "Vendor credentials saved successfully.",
       vendor_id: result.insertId
     });
   } catch (error) {
-    console.error("Vendor credentials save error:", error);
-    res.status(500).json({ message: "Failed to save vendor credentials." });
+    console.error("Save vendor credentials error:", error);
+    res.status(500).json({
+      message: error.sqlMessage || "Failed to save vendor credentials."
+    });
   }
 });
 
@@ -3684,6 +3529,17 @@ app.post("/vendor/assessments/:assessment_id/save", requireVendor, upload.any(),
       [values]
     );
 
+    if (submitStatus === "Submitted") {
+      const missingSubmissionItems = await findMissingVendorSubmissionItems(employeeAssessment.department_assessment_id);
+
+      if (missingSubmissionItems.length > 0) {
+        return res.status(400).json({
+          message: "Complete all Due Diligence and Information Security questions before submitting.",
+          missing: missingSubmissionItems.slice(0, 15)
+        });
+      }
+    }
+
     const departmentStatus = submitStatus === "Submitted" ? "Pending Admin Approval" : "Draft";
     const assessmentStatus = submitStatus === "Submitted" ? "Pending Admin Approval" : "Draft";
 
@@ -3714,6 +3570,13 @@ app.post("/vendor/assessments/:assessment_id/save", requireVendor, upload.any(),
         `UPDATE vendors SET overall_status = 'In Review' WHERE vendor_id = ?`,
         [assessment.vendor_id]
       );
+      const employeeIds = await getUserIdsByRole("employee");
+      await createNotification(
+        employeeIds,
+        "vendor_submitted",
+        "Due Diligence Submitted",
+        `Vendor ${assessment.company_name} has submitted their due diligence form for assessment ${assessment.assessment_code}.`
+      );
     }
 
     const updatedAssessment = await getVendorOwnedAssessment(req.session.user.user_id, assessmentId);
@@ -3732,8 +3595,189 @@ app.post("/vendor/assessments/:assessment_id/save", requireVendor, upload.any(),
   }
 });
 
-const PORT = process.env.PORT || 3000;
 
+
+/* EMPLOYEE / COMPLIANCE OFFICER - VENDOR DUE DILIGENCE REVIEW */
+
+app.get("/employee/vendor-due-diligence", requireRole("employee"), async (_req, res) => {
+  try {
+    const assessments = await runQuery(
+      `
+        SELECT
+          va.assessment_id
+        FROM vendor_assessments va
+        JOIN vendors v ON va.vendor_id = v.vendor_id
+        LEFT JOIN users creator ON va.created_by_user_id = creator.user_id
+        WHERE va.vendor_status IN ('Submitted', 'Returned', 'Approved', 'Rejected')
+        OR creator.role = 'vendor'
+        OR v.user_id IS NOT NULL
+        ORDER BY va.updated_at DESC, va.created_at DESC
+      `
+    );
+
+    const bundles = [];
+
+    for (const row of assessments) {
+      const bundle = await getAdminAssessmentBundle(row.assessment_id);
+      if (bundle) {
+        bundles.push({
+          ...bundle,
+          display_status: bundle.vendor_status || bundle.overall_status || "Draft"
+        });
+      }
+    }
+
+    res.json({ assessments: bundles });
+  } catch (error) {
+    console.error("Employee vendor due diligence fetch error:", error);
+    res.status(500).json({ message: "Failed to load vendor due diligence submissions." });
+  }
+});
+
+app.post("/employee/vendor-due-diligence/:assessment_id/decision", requireRole("employee"), async (req, res) => {
+  const assessmentId = req.params.assessment_id;
+  const { decision, comment } = req.body;
+
+  if (!["return", "reject", "approve"].includes(decision)) {
+    return res.status(400).json({ message: "Invalid decision." });
+  }
+
+  try {
+    const rows = await runQuery(
+      `
+        SELECT
+          va.*,
+          v.vendor_id,
+          v.user_id AS vendor_user_id
+        FROM vendor_assessments va
+        JOIN vendors v ON va.vendor_id = v.vendor_id
+        WHERE va.assessment_id = ?
+        LIMIT 1
+      `,
+      [assessmentId]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ message: "Vendor assessment not found." });
+    }
+
+    const assessment = rows[0];
+    const employeeAssessment = await ensureDepartmentAssessment(assessmentId, "employee", "Draft");
+
+    if (decision === "return") {
+      await runQuery(
+        `
+          UPDATE vendor_assessments
+          SET vendor_status = 'Returned', overall_status = 'Draft', updated_at = CURRENT_TIMESTAMP
+          WHERE assessment_id = ?
+        `,
+        [assessmentId]
+      );
+
+      await runQuery(
+        `
+          UPDATE department_assessments
+          SET status = 'Draft', admin_comment = ?, approved_at = NULL
+          WHERE department_assessment_id = ?
+        `,
+        [comment || "Returned to vendor for revision.", employeeAssessment.department_assessment_id]
+      );
+
+      await runQuery(`UPDATE vendors SET overall_status = 'Pending' WHERE vendor_id = ?`, [assessment.vendor_id]);
+      await createNotification(
+        assessment.vendor_user_id,
+        "returned_to_vendor",
+        "Submission Returned",
+        `Your due diligence submission (${assessment.assessment_code}) has been returned for revision. Comments: ${comment}`
+      );
+
+      return res.json({ message: "Vendor submission returned for revision." });
+    }
+
+    if (decision === "reject") {
+      await runQuery(
+        `
+          UPDATE vendor_assessments
+          SET vendor_status = 'Rejected', overall_status = 'Rejected', updated_at = CURRENT_TIMESTAMP
+          WHERE assessment_id = ?
+        `,
+        [assessmentId]
+      );
+
+      await runQuery(
+        `
+          UPDATE department_assessments
+          SET status = 'Rejected', admin_comment = ?, approved_at = CURRENT_TIMESTAMP
+          WHERE department_assessment_id = ?
+        `,
+        [comment || "Rejected by Employee / Compliance Officer.", employeeAssessment.department_assessment_id]
+      );
+
+      await runQuery(`UPDATE vendors SET overall_status = 'Rejected' WHERE vendor_id = ?`, [assessment.vendor_id]);
+      await createNotification(
+        assessment.vendor_user_id,
+        "rejected_submission",
+        "Submission Rejected",
+        `Your due diligence submission (${assessment.assessment_code}) has been rejected. Comments: ${comment}`
+      );
+      return res.json({ message: "Vendor submission rejected." });
+    }
+
+    const missingSubmissionItems = await findMissingVendorSubmissionItems(employeeAssessment.department_assessment_id);
+
+    if (missingSubmissionItems.length > 0) {
+      return res.status(400).json({
+        message: "This vendor submission is still incomplete and cannot be approved for department review.",
+        missing: missingSubmissionItems.slice(0, 15)
+      });
+    }
+
+    await createAllDepartmentAssessments(assessmentId);
+
+    await runQuery(
+      `
+        UPDATE department_assessments
+        SET status = 'Approved', admin_comment = ?, approved_at = CURRENT_TIMESTAMP
+        WHERE assessment_id = ?
+        AND department_role = 'employee'
+      `,
+      [comment || "Approved for department review.", assessmentId]
+    );
+
+    await runQuery(
+      `
+        UPDATE department_assessments
+        SET status = CASE WHEN status = 'Draft' THEN 'Pending' ELSE status END
+        WHERE assessment_id = ?
+        AND department_role <> 'employee'
+      `,
+      [assessmentId]
+    );
+
+    await runQuery(
+      `
+        UPDATE vendor_assessments
+        SET vendor_status = 'Approved', overall_status = 'In Review', updated_at = CURRENT_TIMESTAMP
+        WHERE assessment_id = ?
+      `,
+      [assessmentId]
+    );
+
+    await runQuery(`UPDATE vendors SET overall_status = 'In Review' WHERE vendor_id = ?`, [assessment.vendor_id]);
+    const deptIds = await getUserIdsByRole(departmentRoles);
+    await createNotification(
+      deptIds,
+      "approved_for_dept",
+      "Department Review Requested",
+      `Vendor assessment ${assessment.assessment_code} (${assessment.company_name}) is now ready for your department's review.`
+    );
+    res.json({ message: "Vendor submission approved and routed to departments." });
+  } catch (error) {
+    console.error("Employee vendor due diligence decision error:", error);
+    res.status(500).json({ message: "Failed to save vendor due diligence decision." });
+  }
+});
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
