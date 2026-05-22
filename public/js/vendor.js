@@ -163,7 +163,7 @@ function getAssessmentStatus(item) {
 }
 
 function getEmployeeFeedback(item) {
-  return item?.employee_comment || item?.employee_review_comment || item?.review_comment || item?.admin_comment || item?.feedback || item?.decision_comment || item?.rejection_reason || "";
+  return item?.employee_comment || item?.vendor_visible_reason || item?.employee_review_comment || item?.review_comment || item?.admin_comment || item?.feedback || item?.decision_comment || item?.rejection_reason || item?.return_reason || "";
 }
 
 function isActionableForRevision(item) {

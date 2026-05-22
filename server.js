@@ -467,6 +467,7 @@ async function initDatabase() {
 
   await addColumnIfMissing("vendor_assessments", "vendor_status", "ENUM('Draft', 'Submitted', 'Returned', 'Approved', 'Rejected') DEFAULT 'Draft'");
   await addColumnIfMissing("vendor_assessments", "employee_review_comment", "TEXT NULL");
+  await addColumnIfMissing("vendor_assessments", "vendor_visible_reason", "TEXT NULL");
   await addColumnIfMissing("vendor_assessments", "employee_decision_by_user_id", "INT NULL");
   await addColumnIfMissing("vendor_assessments", "employee_decision_at", "DATETIME NULL");
 
@@ -2929,7 +2930,7 @@ async function getVendorOwnedAssessment(userId, assessmentId) {
         v.contact_email,
         v.contact_phone,
         employee_da.status AS employee_review_status,
-        COALESCE(va.employee_review_comment, employee_da.admin_comment) AS employee_comment,
+        COALESCE(NULLIF(va.vendor_visible_reason, ''), NULLIF(va.employee_review_comment, ''), NULLIF(employee_da.admin_comment, '')) AS employee_comment,
         COALESCE(va.employee_decision_at, employee_da.approved_at) AS employee_decision_at
       FROM vendor_assessments va
       JOIN vendors v ON va.vendor_id = v.vendor_id
@@ -3029,7 +3030,7 @@ app.get("/vendor/dashboard", requireVendor, async (req, res) => {
           v.company_name,
           v.product_services_offered,
           employee_da.status AS employee_review_status,
-          COALESCE(va.employee_review_comment, employee_da.admin_comment) AS employee_comment,
+          COALESCE(NULLIF(va.vendor_visible_reason, ''), NULLIF(va.employee_review_comment, ''), NULLIF(employee_da.admin_comment, '')) AS employee_comment,
           COALESCE(va.employee_decision_at, employee_da.approved_at) AS employee_decision_at
         FROM vendor_assessments va
         JOIN vendors v ON va.vendor_id = v.vendor_id
@@ -3191,7 +3192,7 @@ app.post("/vendor/assessments", requireVendor, async (req, res) => {
           v.company_name,
           v.product_services_offered,
           employee_da.status AS employee_review_status,
-          COALESCE(va.employee_review_comment, employee_da.admin_comment) AS employee_comment,
+          COALESCE(NULLIF(va.vendor_visible_reason, ''), NULLIF(va.employee_review_comment, ''), NULLIF(employee_da.admin_comment, '')) AS employee_comment,
           COALESCE(va.employee_decision_at, employee_da.approved_at) AS employee_decision_at
         FROM vendor_assessments va
         JOIN vendors v ON va.vendor_id = v.vendor_id
@@ -3349,12 +3350,13 @@ app.post("/vendor/assessments/:assessment_id/save", requireVendor, upload.any(),
             overall_status = ?,
             vendor_status = ?,
             employee_review_comment = CASE WHEN ? = 'Submitted' THEN NULL ELSE employee_review_comment END,
+            vendor_visible_reason = CASE WHEN ? = 'Submitted' THEN NULL ELSE vendor_visible_reason END,
             employee_decision_by_user_id = CASE WHEN ? = 'Submitted' THEN NULL ELSE employee_decision_by_user_id END,
             employee_decision_at = CASE WHEN ? = 'Submitted' THEN NULL ELSE employee_decision_at END,
             updated_at = CURRENT_TIMESTAMP
         WHERE assessment_id = ?
       `,
-      [assessmentStatus, submitStatus, submitStatus, submitStatus, submitStatus, assessmentId]
+      [assessmentStatus, submitStatus, submitStatus, submitStatus, submitStatus, submitStatus, assessmentId]
     );
 
     if (submitStatus === "Submitted") {
@@ -3421,10 +3423,27 @@ app.get("/employee/vendor-due-diligence", requireRole("employee"), async (_req, 
 
 app.post("/employee/vendor-due-diligence/:assessment_id/decision", requireRole("employee"), async (req, res) => {
   const assessmentId = req.params.assessment_id;
-  const { decision, comment } = req.body;
+  const { decision } = req.body;
+
+  const visibleReason = String(
+    req.body.comment ||
+    req.body.reason ||
+    req.body.employee_reason ||
+    req.body.rejection_reason ||
+    req.body.return_reason ||
+    ""
+  ).trim();
 
   if (!["return", "reject", "approve"].includes(decision)) {
     return res.status(400).json({ message: "Invalid decision." });
+  }
+
+  if (["return", "reject"].includes(decision) && !visibleReason) {
+    return res.status(400).json({
+      message: decision === "reject"
+        ? "Rejection reason is required and will be shown to the vendor."
+        : "Return reason is required and will be shown to the vendor."
+    });
   }
 
   try {
@@ -3450,6 +3469,8 @@ app.post("/employee/vendor-due-diligence/:assessment_id/decision", requireRole("
     const employeeAssessment = await ensureDepartmentAssessment(assessmentId, "employee", "Draft");
 
     if (decision === "return") {
+      const reason = visibleReason || "Returned to vendor for revision.";
+
       await runQuery(
         `
           UPDATE vendor_assessments
@@ -3457,29 +3478,39 @@ app.post("/employee/vendor-due-diligence/:assessment_id/decision", requireRole("
             vendor_status = 'Returned',
             overall_status = 'Draft',
             employee_review_comment = ?,
+            vendor_visible_reason = ?,
             employee_decision_by_user_id = ?,
             employee_decision_at = CURRENT_TIMESTAMP,
             updated_at = CURRENT_TIMESTAMP
           WHERE assessment_id = ?
         `,
-        [comment || "Returned to vendor for revision.", req.session.user.user_id, assessmentId]
+        [reason, reason, req.session.user.user_id, assessmentId]
       );
 
       await runQuery(
         `
           UPDATE department_assessments
-          SET status = 'Draft', admin_comment = ?, approved_at = NULL
+          SET
+            status = 'Draft',
+            admin_comment = ?,
+            approved_at = NULL,
+            updated_at = CURRENT_TIMESTAMP
           WHERE department_assessment_id = ?
         `,
-        [comment || "Returned to vendor for revision.", employeeAssessment.department_assessment_id]
+        [reason, employeeAssessment.department_assessment_id]
       );
 
       await runQuery(`UPDATE vendors SET overall_status = 'Pending' WHERE vendor_id = ?`, [assessment.vendor_id]);
 
-      return res.json({ message: "Vendor submission returned for revision." });
+      return res.json({
+        message: "Vendor submission returned for revision.",
+        vendor_visible_reason: reason
+      });
     }
 
     if (decision === "reject") {
+      const reason = visibleReason || "Rejected by Employee / Compliance Officer.";
+
       await runQuery(
         `
           UPDATE vendor_assessments
@@ -3487,26 +3518,34 @@ app.post("/employee/vendor-due-diligence/:assessment_id/decision", requireRole("
             vendor_status = 'Rejected',
             overall_status = 'Rejected',
             employee_review_comment = ?,
+            vendor_visible_reason = ?,
             employee_decision_by_user_id = ?,
             employee_decision_at = CURRENT_TIMESTAMP,
             updated_at = CURRENT_TIMESTAMP
           WHERE assessment_id = ?
         `,
-        [comment || "Rejected by Employee / Compliance Officer.", req.session.user.user_id, assessmentId]
+        [reason, reason, req.session.user.user_id, assessmentId]
       );
 
       await runQuery(
         `
           UPDATE department_assessments
-          SET status = 'Rejected', admin_comment = ?, approved_at = CURRENT_TIMESTAMP
+          SET
+            status = 'Rejected',
+            admin_comment = ?,
+            approved_at = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
           WHERE department_assessment_id = ?
         `,
-        [comment || "Rejected by Employee / Compliance Officer.", employeeAssessment.department_assessment_id]
+        [reason, employeeAssessment.department_assessment_id]
       );
 
       await runQuery(`UPDATE vendors SET overall_status = 'Rejected' WHERE vendor_id = ?`, [assessment.vendor_id]);
 
-      return res.json({ message: "Vendor submission rejected." });
+      return res.json({
+        message: "Vendor submission rejected.",
+        vendor_visible_reason: reason
+      });
     }
 
     const missingSubmissionItems = await findMissingVendorSubmissionItems(employeeAssessment.department_assessment_id);
@@ -3520,14 +3559,20 @@ app.post("/employee/vendor-due-diligence/:assessment_id/decision", requireRole("
 
     await createAllDepartmentAssessments(assessmentId);
 
+    const approvalComment = visibleReason || req.body.comment || "Approved for department review.";
+
     await runQuery(
       `
         UPDATE department_assessments
-        SET status = 'Approved', admin_comment = ?, approved_at = CURRENT_TIMESTAMP
+        SET
+          status = 'Approved',
+          admin_comment = ?,
+          approved_at = CURRENT_TIMESTAMP,
+          updated_at = CURRENT_TIMESTAMP
         WHERE assessment_id = ?
         AND department_role = 'employee'
       `,
-      [comment || "Approved for department review.", assessmentId]
+      [approvalComment, assessmentId]
     );
 
     await runQuery(
@@ -3547,12 +3592,13 @@ app.post("/employee/vendor-due-diligence/:assessment_id/decision", requireRole("
           vendor_status = 'Approved',
           overall_status = 'In Review',
           employee_review_comment = ?,
+          vendor_visible_reason = NULL,
           employee_decision_by_user_id = ?,
           employee_decision_at = CURRENT_TIMESTAMP,
           updated_at = CURRENT_TIMESTAMP
         WHERE assessment_id = ?
       `,
-      [comment || "Approved for department review.", req.session.user.user_id, assessmentId]
+      [approvalComment, req.session.user.user_id, assessmentId]
     );
 
     await runQuery(`UPDATE vendors SET overall_status = 'In Review' WHERE vendor_id = ?`, [assessment.vendor_id]);
@@ -3560,7 +3606,9 @@ app.post("/employee/vendor-due-diligence/:assessment_id/decision", requireRole("
     res.json({ message: "Vendor submission approved and routed to departments." });
   } catch (error) {
     console.error("Employee vendor due diligence decision error:", error);
-    res.status(500).json({ message: "Failed to save vendor due diligence decision." });
+    res.status(500).json({
+      message: error.sqlMessage || "Failed to save vendor due diligence decision."
+    });
   }
 });
 
