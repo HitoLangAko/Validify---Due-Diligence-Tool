@@ -111,6 +111,7 @@ let answersBySection = {};
 
 const pages = {
   dashboard: document.getElementById("dashboardPage"),
+  "my-submissions": document.getElementById("mySubmissionsPage"),
   credentials: document.getElementById("credentialsPage"),
   "create-assessment": document.getElementById("createAssessmentPage"),
   workspace: document.getElementById("assessmentWorkspacePage")
@@ -137,14 +138,37 @@ function todayInputValue() {
 }
 
 function displayStatus(status) {
-  return String(status || "Draft")
-    .replaceAll("Pending Admin Approval", "Submitted to Employee")
-    .replaceAll("Submitted", "Submitted to Employee")
-    .replaceAll("Approved", "Approved for Department Review");
+  const value = String(status || "Draft");
+  const statusMap = {
+    Draft: "Draft",
+    Submitted: "Submitted to Employee",
+    "Pending Admin Approval": "Submitted to Employee",
+    Returned: "Returned for Revision",
+    Rejected: "Rejected",
+    Approved: "Approved for Department Review",
+    "In Review": "Under Department Review",
+    Completed: "Completed",
+    "Approved with Conditions": "Approved with Conditions",
+    "Requires Remediation": "Requires Remediation"
+  };
+  return statusMap[value] || value;
 }
 
 function statusClass(status) {
   return `status-${String(status || "Draft").toLowerCase().replaceAll(" ", "-")}`;
+}
+
+function getAssessmentStatus(item) {
+  return item?.vendor_status || item?.overall_status || "Draft";
+}
+
+function getEmployeeFeedback(item) {
+  return item?.employee_comment || item?.review_comment || item?.admin_comment || item?.feedback || "";
+}
+
+function isActionableForRevision(item) {
+  const status = getAssessmentStatus(item);
+  return ["Draft", "Returned"].includes(status);
 }
 
 function showToast(message) {
@@ -173,7 +197,7 @@ async function api(url, options = {}) {
   }
 
   if (!response.ok) {
-    throw new Error(data?.message || `Request failed (${response.status}).`);
+    throw new Error(data?.message || "Request failed.");
   }
 
   return data;
@@ -243,6 +267,7 @@ function showPage(pageKey) {
   }
 
   if (pageKey === "dashboard") renderDashboard();
+  if (pageKey === "my-submissions") renderMySubmissions();
   if (pageKey === "create-assessment") populateAssessmentControls();
 }
 
@@ -333,6 +358,113 @@ function renderDashboard() {
   });
 }
 
+
+function renderSubmissionPanel(item = null) {
+  const title = document.getElementById("selectedSubmissionTitle");
+  const status = document.getElementById("selectedSubmissionStatus");
+  const vendor = document.getElementById("selectedSubmissionVendor");
+  const purpose = document.getElementById("selectedSubmissionPurpose");
+  const date = document.getElementById("selectedSubmissionDate");
+  const feedbackPanel = document.getElementById("vendorFeedbackPanel");
+  const feedbackTitle = document.getElementById("vendorFeedbackTitle");
+  const feedbackText = document.getElementById("vendorFeedbackText");
+
+  if (!item) {
+    if (title) title.textContent = "No assessment selected";
+    if (status) {
+      status.textContent = "Draft";
+      status.className = "status-pill status-draft";
+    }
+    if (vendor) vendor.textContent = "—";
+    if (purpose) purpose.textContent = "—";
+    if (date) date.textContent = "—";
+    if (feedbackPanel) feedbackPanel.classList.add("hidden");
+    return;
+  }
+
+  const rawStatus = getAssessmentStatus(item);
+  const feedback = getEmployeeFeedback(item);
+
+  if (title) title.textContent = item.assessment_code || `VA-${item.assessment_id}`;
+  if (status) {
+    status.textContent = displayStatus(rawStatus);
+    status.className = `status-pill ${statusClass(rawStatus)}`;
+  }
+  if (vendor) vendor.textContent = item.company_name || "Unknown Vendor";
+  if (purpose) purpose.textContent = item.purpose || "N/A";
+  if (date) date.textContent = formatDate(item.updated_at || item.created_at);
+
+  if (feedbackPanel) {
+    const shouldShowFeedback = Boolean(feedback) && ["Returned", "Rejected", "Requires Remediation", "Approved with Conditions"].includes(rawStatus);
+    feedbackPanel.classList.toggle("hidden", !shouldShowFeedback);
+    feedbackPanel.classList.toggle("rejected", rawStatus === "Rejected");
+    feedbackPanel.classList.toggle("returned", rawStatus === "Returned");
+
+    if (feedbackTitle) {
+      feedbackTitle.textContent = rawStatus === "Rejected"
+        ? "Reason for Rejection"
+        : rawStatus === "Returned"
+          ? "Reason for Return / Revision"
+          : "Employee Feedback";
+    }
+    if (feedbackText) feedbackText.textContent = feedback || "No feedback available.";
+  }
+}
+
+function renderMySubmissions(selectedAssessmentId = null) {
+  const tbody = document.getElementById("mySubmissionsBody");
+  if (!tbody) return;
+
+  const selectedItem = selectedAssessmentId
+    ? findAssessment(selectedAssessmentId)
+    : (activeAssessmentId ? findAssessment(activeAssessmentId) : assessments[0]);
+
+  renderSubmissionPanel(selectedItem || null);
+
+  if (!assessments.length) {
+    tbody.innerHTML = `<tr><td colspan="7" class="empty-row">No submissions yet. Create an assessment and submit the Information Security form.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = assessments.map((item) => {
+    const rawStatus = getAssessmentStatus(item);
+    const feedback = getEmployeeFeedback(item);
+    const actionLabel = isActionableForRevision(item) ? "Continue" : "View";
+    const feedbackPreview = feedback
+      ? `<span class="feedback-preview">${escapeHTML(feedback)}</span>`
+      : `<span class="muted-note">No employee note yet.</span>`;
+
+    return `
+      <tr>
+        <td><strong>${escapeHTML(item.assessment_code || `VA-${item.assessment_id}`)}</strong></td>
+        <td>${escapeHTML(item.company_name || "Unknown Vendor")}</td>
+        <td>${escapeHTML(item.purpose || "N/A")}</td>
+        <td><span class="status-pill ${statusClass(rawStatus)}">${escapeHTML(displayStatus(rawStatus))}</span></td>
+        <td>${feedbackPreview}</td>
+        <td>${escapeHTML(formatDate(item.updated_at || item.created_at))}</td>
+        <td>
+          <div class="button-stack-inline">
+            <button class="secondary-btn compact-action-btn" type="button" data-view-submission-id="${escapeHTML(item.assessment_id)}">Details</button>
+            <button class="primary-btn compact-action-btn" type="button" data-open-submission-id="${escapeHTML(item.assessment_id)}">${actionLabel}</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join("");
+
+  tbody.querySelectorAll("[data-view-submission-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      activeAssessmentId = String(button.dataset.viewSubmissionId);
+      localStorage.setItem("active_assessment_id", activeAssessmentId);
+      renderMySubmissions(activeAssessmentId);
+    });
+  });
+
+  tbody.querySelectorAll("[data-open-submission-id]").forEach((button) => {
+    button.addEventListener("click", () => selectAssessment(button.dataset.openSubmissionId, "vendor_info"));
+  });
+}
+
 function populateAssessmentControls() {
   const vendorSelect = document.getElementById("selectVendor");
   const existingSelect = document.getElementById("selectExisting");
@@ -379,27 +511,12 @@ async function loadVendorDashboard() {
   if (accountName) accountName.textContent = displayName;
   if (menuName) menuName.textContent = displayName;
 
-  // VENDOR REJECTION MODAL LOGIC
-  // Find the first assessment that is Rejected or Returned and has a reason
-  const rejectedAssessment = assessments.find(item => 
-    (item.vendor_status === 'Rejected' || item.overall_status === 'Rejected' || 
-     item.vendor_status === 'Returned' || item.overall_status === 'Returned') 
-    && item.rejection_reason
-  );
-
-  if (rejectedAssessment) {
-      const reasonBox = document.getElementById('vendorRejectionReasonText');
-      const modal = document.getElementById('vendorRejectionModal');
-      
-      if (reasonBox && modal) {
-          reasonBox.textContent = `"${rejectedAssessment.rejection_reason}"`;
-          modal.style.display = 'flex';
-      }
-  }
-  // =========================================
-
   populateAssessmentControls();
   renderDashboard();
+
+  if (pages["my-submissions"]?.classList.contains("active")) {
+    renderMySubmissions(activeAssessmentId);
+  }
 }
 
 async function saveVendorCredentials(event) {
@@ -741,6 +858,12 @@ function setupEvents() {
     answersBySection = {};
     showToast("Local active assessment selection cleared. Database records were not deleted.");
     await loadVendorDashboard();
+  });
+
+  document.getElementById("refreshSubmissionsBtn")?.addEventListener("click", async () => {
+    await loadVendorDashboard();
+    renderMySubmissions(activeAssessmentId);
+    showToast("Submission status refreshed.");
   });
 
   document.getElementById("darkModeBtn")?.addEventListener("click", () => {

@@ -234,8 +234,6 @@ app.use(express.static("public"));
 
 app.get("/favicon.ico", (_req, res) => res.status(204).end());
 
-app.get("/favicon.ico", (_req, res) => res.status(204).end());
-
 const uploadDir = path.join(__dirname, "public", "uploads");
 fs.mkdirSync(uploadDir, { recursive: true });
 
@@ -436,14 +434,8 @@ async function initDatabase() {
   `);
 
   await addColumnIfMissing("vendors", "user_id", "INT NULL");
-  await addColumnIfMissing("vendors", "company_website", "VARCHAR(255) NULL");
-  await addColumnIfMissing("vendors", "product_services_offered", "TEXT NULL");
-  await addColumnIfMissing("vendors", "contact_person_name", "VARCHAR(150) NULL");
-  await addColumnIfMissing("vendors", "contact_email", "VARCHAR(150) NULL");
-  await addColumnIfMissing("vendors", "contact_phone", "VARCHAR(50) NULL");
   await addColumnIfMissing("vendors", "created_by_user_id", "INT NULL");
   await addColumnIfMissing("vendors", "overall_status", "ENUM('Pending', 'In Review', 'Completed', 'Rejected') DEFAULT 'Pending'");
-  await addColumnIfMissing("vendors", "updated_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
 
   await runQuery(`
     CREATE TABLE IF NOT EXISTS department_reviews (
@@ -2932,9 +2924,15 @@ async function getVendorOwnedAssessment(userId, assessmentId) {
         v.product_services_offered,
         v.contact_person_name,
         v.contact_email,
-        v.contact_phone
+        v.contact_phone,
+        employee_da.status AS employee_review_status,
+        employee_da.admin_comment AS employee_comment,
+        employee_da.approved_at AS employee_decision_at
       FROM vendor_assessments va
       JOIN vendors v ON va.vendor_id = v.vendor_id
+      LEFT JOIN department_assessments employee_da
+        ON va.assessment_id = employee_da.assessment_id
+        AND employee_da.department_role = 'employee'
       WHERE va.assessment_id = ?
       AND v.user_id = ?
       LIMIT 1
@@ -3026,9 +3024,15 @@ app.get("/vendor/dashboard", requireVendor, async (req, res) => {
           va.created_at,
           va.updated_at,
           v.company_name,
-          v.product_services_offered
+          v.product_services_offered,
+          employee_da.status AS employee_review_status,
+          employee_da.admin_comment AS employee_comment,
+          employee_da.approved_at AS employee_decision_at
         FROM vendor_assessments va
         JOIN vendors v ON va.vendor_id = v.vendor_id
+        LEFT JOIN department_assessments employee_da
+          ON va.assessment_id = employee_da.assessment_id
+          AND employee_da.department_role = 'employee'
         WHERE v.user_id = ?
         ORDER BY va.updated_at DESC, va.created_at DESC
       `,
@@ -3045,7 +3049,7 @@ app.get("/vendor/dashboard", requireVendor, async (req, res) => {
   }
 });
 
-app.post("/vendor/vendors", requireRole("vendor"), async (req, res) => {
+app.post("/vendor/vendors", requireVendor, async (req, res) => {
   const {
     company_name,
     company_website,
@@ -3055,31 +3059,29 @@ app.post("/vendor/vendors", requireRole("vendor"), async (req, res) => {
     contact_phone
   } = req.body;
 
-  if (!company_name || !product_services_offered || !contact_person_name) {
-    return res.status(400).json({
-      message: "Company name, services offered, and contact person are required."
-    });
+  if (!company_name || !product_services_offered || !contact_person_name || !contact_email || !contact_phone) {
+    return res.status(400).json({ message: "Company name, services, contact person, email, and phone are required." });
   }
 
   try {
     const userId = req.session.user.user_id;
 
-    const existing = await runQuery(
+    const duplicateRows = await runQuery(
       `
         SELECT vendor_id
         FROM vendors
         WHERE user_id = ?
+        AND LOWER(company_name) = LOWER(?)
         LIMIT 1
       `,
-      [userId]
+      [userId, company_name]
     );
 
-    if (existing.length) {
+    if (duplicateRows.length) {
       await runQuery(
         `
           UPDATE vendors
           SET
-            company_name = ?,
             company_website = ?,
             product_services_offered = ?,
             contact_person_name = ?,
@@ -3087,38 +3089,29 @@ app.post("/vendor/vendors", requireRole("vendor"), async (req, res) => {
             contact_phone = ?,
             updated_at = CURRENT_TIMESTAMP
           WHERE vendor_id = ?
+          AND user_id = ?
         `,
         [
-          company_name,
           company_website || null,
           product_services_offered,
           contact_person_name,
-          contact_email || null,
-          contact_phone || null,
-          existing[0].vendor_id
+          contact_email,
+          contact_phone,
+          duplicateRows[0].vendor_id,
+          userId
         ]
       );
 
       return res.json({
-        message: "Vendor credentials updated successfully.",
-        vendor_id: existing[0].vendor_id
+        message: "Vendor credentials updated.",
+        vendor_id: duplicateRows[0].vendor_id
       });
     }
 
     const result = await runQuery(
       `
         INSERT INTO vendors
-        (
-          user_id,
-          company_name,
-          company_website,
-          product_services_offered,
-          contact_person_name,
-          contact_email,
-          contact_phone,
-          created_by_user_id,
-          overall_status
-        )
+        (user_id, company_name, company_website, product_services_offered, contact_person_name, contact_email, contact_phone, created_by_user_id, overall_status)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Pending')
       `,
       [
@@ -3127,21 +3120,19 @@ app.post("/vendor/vendors", requireRole("vendor"), async (req, res) => {
         company_website || null,
         product_services_offered,
         contact_person_name,
-        contact_email || null,
-        contact_phone || null,
+        contact_email,
+        contact_phone,
         userId
       ]
     );
 
     res.json({
-      message: "Vendor credentials saved successfully.",
+      message: "Vendor credentials saved.",
       vendor_id: result.insertId
     });
   } catch (error) {
-    console.error("Save vendor credentials error:", error);
-    res.status(500).json({
-      message: error.sqlMessage || "Failed to save vendor credentials."
-    });
+    console.error("Vendor credentials save error:", error);
+    res.status(500).json({ message: "Failed to save vendor credentials." });
   }
 });
 
@@ -3195,9 +3186,15 @@ app.post("/vendor/assessments", requireVendor, async (req, res) => {
           va.created_at,
           va.updated_at,
           v.company_name,
-          v.product_services_offered
+          v.product_services_offered,
+          employee_da.status AS employee_review_status,
+          employee_da.admin_comment AS employee_comment,
+          employee_da.approved_at AS employee_decision_at
         FROM vendor_assessments va
         JOIN vendors v ON va.vendor_id = v.vendor_id
+        LEFT JOIN department_assessments employee_da
+          ON va.assessment_id = employee_da.assessment_id
+          AND employee_da.department_role = 'employee'
         WHERE va.assessment_id = ?
       `,
       [assessmentId]
