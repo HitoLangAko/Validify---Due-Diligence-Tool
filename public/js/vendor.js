@@ -446,11 +446,24 @@ async function openSubmissionDetailsModal(item) {
 
   try {
     const feedbackData = await api(`/vendor/assessments/${encodeURIComponent(item.assessment_id)}/feedback`);
-    const liveReason = feedbackData?.feedback?.employee_comment || "";
+    const liveFeedback = feedbackData?.feedback || feedbackData || {};
+    const liveReason =
+      liveFeedback.employee_comment ||
+      liveFeedback.vendor_visible_reason ||
+      liveFeedback.employee_review_comment ||
+      liveFeedback.reason ||
+      liveFeedback.latest_feedback_reason ||
+      liveFeedback.admin_comment ||
+      "";
+
     if (liveReason) {
       feedback = liveReason;
       const found = assessments.find((assessment) => String(assessment.assessment_id) === String(item.assessment_id));
-      if (found) found.employee_comment = liveReason;
+      if (found) {
+        found.employee_comment = liveReason;
+        found.vendor_visible_reason = liveReason;
+        found.employee_review_comment = liveReason;
+      }
     }
   } catch (_error) {
     // Keep the dashboard-loaded reason if live feedback fetch fails.

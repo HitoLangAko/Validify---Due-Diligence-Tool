@@ -2526,6 +2526,29 @@ async function confirmVendorDueDiligenceReasonDecision() {
   modal.classList.add("hidden");
 }
 
+async function postVendorDueDiligenceDecision(assessmentId, payload) {
+  const encodedReason = encodeURIComponent(payload.reason || payload.comment || "");
+
+  const primaryUrl = `/employee/vendor-due-diligence/${assessmentId}/decision?reason=${encodedReason}&comment=${encodedReason}`;
+  const fallbackUrl = `/employee/vendor-assessments/${assessmentId}/decision?reason=${encodedReason}&comment=${encodedReason}`;
+
+  try {
+    return await api(primaryUrl, {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  } catch (primaryError) {
+    try {
+      return await api(fallbackUrl, {
+        method: "POST",
+        body: JSON.stringify(payload)
+      });
+    } catch (fallbackError) {
+      throw new Error(fallbackError.message || primaryError.message || "Failed to save vendor due diligence decision.");
+    }
+  }
+}
+
 async function submitVendorDueDiligenceDecision(decision, forcedReason = null) {
   if (!selectedVendorDueDiligence?.assessment_id) {
     alert("Please select a vendor assessment first.");
@@ -2539,7 +2562,7 @@ async function submitVendorDueDiligenceDecision(decision, forcedReason = null) {
   };
 
   const decisionComment = forcedReason !== null
-    ? forcedReason
+    ? forcedReason.trim()
     : (vendorDueDiligenceDecisionNote?.value.trim() || "");
 
   if (["return", "reject"].includes(decision) && !decisionComment) {
@@ -2549,38 +2572,32 @@ async function submitVendorDueDiligenceDecision(decision, forcedReason = null) {
 
   if (!confirm(`Are you sure you want to ${labels[decision]}?`)) return;
 
-  try {
-    const encodedReason = encodeURIComponent(decisionComment || "");
-    const data = await api(`/employee/vendor-due-diligence/${selectedVendorDueDiligence.assessment_id}/decision?reason=${encodedReason}&comment=${encodedReason}`, {
-      method: "POST",
-      body: JSON.stringify({
-        decision,
-        comment: decisionComment,
-        reason: decisionComment,
-        employee_reason: decisionComment,
-        rejection_reason: decision === "reject" ? decisionComment : "",
-        return_reason: decision === "return" ? decisionComment : ""
-      })
-    });
+  const payload = {
+    decision,
+    comment: decisionComment,
+    reason: decisionComment,
+    employee_reason: decisionComment,
+    vendor_visible_reason: decisionComment,
+    rejection_reason: decision === "reject" ? decisionComment : "",
+    return_reason: decision === "return" ? decisionComment : ""
+  };
 
-    if (["return", "reject"].includes(decision)) {
-      await api(`/employee/vendor-due-diligence/${selectedVendorDueDiligence.assessment_id}/reason?decision=${encodeURIComponent(decision)}&reason=${encodedReason}&comment=${encodedReason}`, {
-        method: "POST",
-        body: JSON.stringify({
-          decision,
-          reason: decisionComment,
-          comment: decisionComment,
-          employee_reason: decisionComment,
-          rejection_reason: decision === "reject" ? decisionComment : "",
-          return_reason: decision === "return" ? decisionComment : ""
-        })
-      });
-    }
+  try {
+    const data = await postVendorDueDiligenceDecision(selectedVendorDueDiligence.assessment_id, payload);
 
     showToast(data.message || "Vendor due diligence decision saved.");
+
     if (vendorDueDiligenceDecisionNote) vendorDueDiligenceDecisionNote.value = "";
+
+    const assessmentId = selectedVendorDueDiligence.assessment_id;
     selectedVendorDueDiligence = null;
+
     await loadVendorDueDiligenceData();
+
+    if (vendorDueDiligenceSelect) {
+      vendorDueDiligenceSelect.value = String(assessmentId);
+      handleVendorDueDiligenceSelection();
+    }
   } catch (error) {
     alert(error.message || "Failed to save vendor due diligence decision.");
   }
