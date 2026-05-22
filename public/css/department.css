@@ -3908,3 +3908,80 @@ input[type="file"]:not(.hidden):hover::file-selector-button,
 }
 /* Department Reviewer page-only overrides */
 body { }
+
+/* INFOSEC VENDOR REGISTRATION ACCESS */
+.vendor-access-card {
+  min-height: auto;
+}
+
+.vendor-access-form {
+  margin-top: 20px;
+}
+
+.access-action-field {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.vendor-access-create-btn {
+  width: 260px;
+  max-width: 100%;
+}
+
+.vendor-access-result {
+  margin: 18px 0 24px;
+  padding: 18px 20px;
+  border: 1px solid #22c55e;
+  border-radius: 16px;
+  background: #ecfdf5;
+}
+
+.vendor-access-title {
+  margin: 0 0 10px;
+  color: #166534;
+  font-weight: 900;
+}
+
+.vendor-access-code-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.vendor-access-code-row code {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  padding: 0 16px;
+  border: 1px dashed #16a34a;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+.vendor-access-table-wrap {
+  margin-top: 18px;
+}
+
+.status-active {
+  background: #bbf7d0 !important;
+  color: #166534 !important;
+  border-color: #22c55e !important;
+}
+
+.status-used {
+  background: #dbeafe !important;
+  color: #1e40af !important;
+  border-color: #60a5fa !important;
+}
+
+.status-revoked {
+  background: #fecaca !important;
+  color: #7f1d1d !important;
+  border-color: #ef4444 !important;
+}

@@ -5,6 +5,7 @@ const bcrypt = require("bcryptjs");
 const session = require("express-session");
 const path = require("path");
 const fs = require("fs");
+const crypto = require("crypto");
 const multer = require("multer");
 const ExcelJS = require("exceljs");
 require("dotenv").config();
@@ -231,8 +232,6 @@ app.use((req, res, next) => {
 });
 
 app.use(express.static("public"));
-
-app.get("/favicon.ico", (_req, res) => res.status(204).end());
 
 const uploadDir = path.join(__dirname, "public", "uploads");
 fs.mkdirSync(uploadDir, { recursive: true });
@@ -466,10 +465,6 @@ async function initDatabase() {
   `);
 
   await addColumnIfMissing("vendor_assessments", "vendor_status", "ENUM('Draft', 'Submitted', 'Returned', 'Approved', 'Rejected') DEFAULT 'Draft'");
-  await addColumnIfMissing("vendor_assessments", "employee_review_comment", "TEXT NULL");
-  await addColumnIfMissing("vendor_assessments", "vendor_visible_reason", "TEXT NULL");
-  await addColumnIfMissing("vendor_assessments", "employee_decision_by_user_id", "INT NULL");
-  await addColumnIfMissing("vendor_assessments", "employee_decision_at", "DATETIME NULL");
 
   await runQuery(`
     CREATE TABLE IF NOT EXISTS department_assessments (
@@ -544,18 +539,28 @@ async function initDatabase() {
   await addColumnIfMissing("sign_offs", "created_by_user_id", "INT NULL");
   await addColumnIfMissing("sign_offs", "created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
 
+
   await runQuery(`
-    CREATE TABLE IF NOT EXISTS assessment_feedback_logs (
-      feedback_id INT AUTO_INCREMENT PRIMARY KEY,
-      assessment_id INT NOT NULL,
-      decision ENUM('return', 'reject', 'approve', 'final') NOT NULL,
-      reason TEXT NOT NULL,
-      created_by_user_id INT NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      INDEX idx_feedback_assessment (assessment_id),
-      INDEX idx_feedback_decision (decision)
+    CREATE TABLE IF NOT EXISTS vendor_registration_access (
+      access_id INT AUTO_INCREMENT PRIMARY KEY,
+      access_code VARCHAR(64) NOT NULL UNIQUE,
+      vendor_email VARCHAR(150) NULL,
+      company_name VARCHAR(150) NULL,
+      status ENUM('ACTIVE', 'USED', 'REVOKED') DEFAULT 'ACTIVE',
+      created_by_user_id INT NOT NULL,
+      used_by_user_id INT NULL,
+      used_at TIMESTAMP NULL,
+      expires_at DATETIME NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  await addColumnIfMissing("vendor_registration_access", "vendor_email", "VARCHAR(150) NULL");
+  await addColumnIfMissing("vendor_registration_access", "company_name", "VARCHAR(150) NULL");
+  await addColumnIfMissing("vendor_registration_access", "status", "ENUM('ACTIVE', 'USED', 'REVOKED') DEFAULT 'ACTIVE'");
+  await addColumnIfMissing("vendor_registration_access", "used_by_user_id", "INT NULL");
+  await addColumnIfMissing("vendor_registration_access", "used_at", "TIMESTAMP NULL");
+  await addColumnIfMissing("vendor_registration_access", "expires_at", "DATETIME NULL");
 
   console.log("Database tables checked.");
 }
@@ -584,6 +589,27 @@ function flattenQuestionsForRole(role) {
 function makeAssessmentCode(assessmentId) {
   return `VA-${String(assessmentId).padStart(3, "0")}`;
 }
+
+
+function makeVendorAccessCode() {
+  const raw = crypto.randomBytes(5).toString("hex").toUpperCase();
+  return `VND-${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8, 10)}`;
+}
+
+async function createUniqueVendorAccessCode() {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const code = makeVendorAccessCode();
+    const existing = await runQuery(
+      "SELECT access_id FROM vendor_registration_access WHERE access_code = ? LIMIT 1",
+      [code]
+    );
+
+    if (!existing.length) return code;
+  }
+
+  throw new Error("Failed to generate a unique vendor access code.");
+}
+
 
 async function ensureDepartmentAssessment(assessmentId, departmentRole, statusWhenNew = "Pending") {
   const existing = await runQuery(
@@ -636,37 +662,6 @@ async function createAllDepartmentAssessments(assessmentId) {
   );
 }
 
-async function recordAssessmentFeedback(assessmentId, decision, reason, userId) {
-  const cleanReason = String(reason || "").trim();
-
-  if (!cleanReason) return;
-
-  await runQuery(
-    `
-      INSERT INTO assessment_feedback_logs
-      (assessment_id, decision, reason, created_by_user_id)
-      VALUES (?, ?, ?, ?)
-    `,
-    [assessmentId, decision, cleanReason, userId || null]
-  );
-}
-
-async function getLatestVendorVisibleFeedback(assessmentId) {
-  const rows = await runQuery(
-    `
-      SELECT reason
-      FROM assessment_feedback_logs
-      WHERE assessment_id = ?
-      AND decision IN ('return', 'reject')
-      ORDER BY created_at DESC, feedback_id DESC
-      LIMIT 1
-    `,
-    [assessmentId]
-  );
-
-  return rows[0]?.reason || "";
-}
-
 async function updateMainAssessmentStatus(assessmentId) {
   const rows = await runQuery(
     `
@@ -700,10 +695,127 @@ async function updateMainAssessmentStatus(assessmentId) {
   );
 }
 
+
+/* INFOSEC VENDOR REGISTRATION ACCESS ROUTES */
+
+app.get("/infosec/vendor-access", requireRole("infosec"), async (_req, res) => {
+  try {
+    const rows = await runQuery(
+      `
+        SELECT
+          vra.access_id,
+          vra.access_code,
+          vra.vendor_email,
+          vra.company_name,
+          vra.status,
+          vra.expires_at,
+          vra.created_at,
+          vra.used_at,
+          creator.full_name AS created_by,
+          used_user.full_name AS used_by
+        FROM vendor_registration_access vra
+        LEFT JOIN users creator ON vra.created_by_user_id = creator.user_id
+        LEFT JOIN users used_user ON vra.used_by_user_id = used_user.user_id
+        ORDER BY vra.created_at DESC
+      `
+    );
+
+    res.json(rows);
+  } catch (error) {
+    console.error("Fetch vendor access codes error:", error);
+    res.status(500).json({ message: error.sqlMessage || "Failed to load vendor access codes." });
+  }
+});
+
+app.post("/infosec/vendor-access", requireRole("infosec"), async (req, res) => {
+  const vendorEmail = String(req.body.vendor_email || "").trim();
+  const companyName = String(req.body.company_name || "").trim();
+  const expiresAt = String(req.body.expires_at || "").trim();
+
+  if (!vendorEmail) {
+    return res.status(400).json({ message: "Vendor email is required." });
+  }
+
+  try {
+    const code = await createUniqueVendorAccessCode();
+
+    const result = await runQuery(
+      `
+        INSERT INTO vendor_registration_access
+        (access_code, vendor_email, company_name, expires_at, created_by_user_id, status)
+        VALUES (?, ?, ?, ?, ?, 'ACTIVE')
+      `,
+      [
+        code,
+        vendorEmail,
+        companyName || null,
+        expiresAt || null,
+        req.session.user.user_id
+      ]
+    );
+
+    const rows = await runQuery(
+      `
+        SELECT
+          access_id,
+          access_code,
+          vendor_email,
+          company_name,
+          status,
+          expires_at,
+          created_at
+        FROM vendor_registration_access
+        WHERE access_id = ?
+      `,
+      [result.insertId]
+    );
+
+    res.json({
+      message: "Vendor registration access code created.",
+      access: rows[0]
+    });
+  } catch (error) {
+    console.error("Create vendor access code error:", error);
+    res.status(500).json({ message: error.sqlMessage || "Failed to create vendor access code." });
+  }
+});
+
+app.patch("/infosec/vendor-access/:access_id/revoke", requireRole("infosec"), async (req, res) => {
+  const accessId = req.params.access_id;
+
+  try {
+    const result = await runQuery(
+      `
+        UPDATE vendor_registration_access
+        SET status = 'REVOKED'
+        WHERE access_id = ?
+        AND status = 'ACTIVE'
+      `,
+      [accessId]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(400).json({ message: "Access code cannot be revoked or was already used." });
+    }
+
+    res.json({ message: "Vendor access code revoked." });
+  } catch (error) {
+    console.error("Revoke vendor access code error:", error);
+    res.status(500).json({ message: error.sqlMessage || "Failed to revoke vendor access code." });
+  }
+});
+
+
 /* AUTH ROUTES */
 
 app.post("/register", async (req, res) => {
   const { full_name, email, password, role } = req.body;
+  const vendorAccessCode = String(
+    req.body.vendor_access_code ||
+    req.body.vendorAccessCode ||
+    req.body.access_code ||
+    ""
+  ).trim().toUpperCase();
 
   if (!full_name || !email || !password || !role) {
     return res.status(400).json({ message: "Please fill in all fields." });
@@ -713,10 +825,64 @@ app.post("/register", async (req, res) => {
     return res.status(400).json({ message: "Invalid role selected." });
   }
 
+  if (role === "vendor" && !vendorAccessCode) {
+    return res.status(400).json({
+      message: "Vendor registration requires an access code from InfoSec."
+    });
+  }
+
   try {
+    let accessRecord = null;
+
+    if (role === "vendor") {
+      const accessRows = await runQuery(
+        `
+          SELECT *
+          FROM vendor_registration_access
+          WHERE access_code = ?
+          LIMIT 1
+        `,
+        [vendorAccessCode]
+      );
+
+      if (!accessRows.length) {
+        return res.status(403).json({
+          message: "Invalid vendor access code. Please request access from InfoSec."
+        });
+      }
+
+      accessRecord = accessRows[0];
+
+      if (accessRecord.status !== "ACTIVE") {
+        return res.status(403).json({
+          message: "This vendor access code is already used or no longer active."
+        });
+      }
+
+      if (accessRecord.expires_at && new Date(accessRecord.expires_at) < new Date()) {
+        await runQuery(
+          "UPDATE vendor_registration_access SET status = 'REVOKED' WHERE access_id = ?",
+          [accessRecord.access_id]
+        );
+
+        return res.status(403).json({
+          message: "This vendor access code has expired. Please request a new one from InfoSec."
+        });
+      }
+
+      if (
+        accessRecord.vendor_email &&
+        String(accessRecord.vendor_email).trim().toLowerCase() !== String(email).trim().toLowerCase()
+      ) {
+        return res.status(403).json({
+          message: "This vendor access code is assigned to a different email address."
+        });
+      }
+    }
+
     const passwordHash = await bcrypt.hash(password, 10);
 
-    await runQuery(
+    const result = await runQuery(
       `
         INSERT INTO users
         (full_name, email, password_hash, role, email_verified, verification_token_hash, verification_token_expires)
@@ -725,16 +891,51 @@ app.post("/register", async (req, res) => {
       [full_name, email, passwordHash, role]
     );
 
-    res.json({ message: "Account registered successfully. You can now log in." });
+    if (role === "vendor" && accessRecord) {
+      await runQuery(
+        `
+          UPDATE vendor_registration_access
+          SET status = 'USED',
+              used_by_user_id = ?,
+              used_at = CURRENT_TIMESTAMP
+          WHERE access_id = ?
+        `,
+        [result.insertId, accessRecord.access_id]
+      );
+
+      if (accessRecord.company_name) {
+        await runQuery(
+          `
+            INSERT INTO vendors
+            (user_id, company_name, contact_person_name, contact_email, created_by_user_id, overall_status)
+            VALUES (?, ?, ?, ?, ?, 'Pending')
+          `,
+          [
+            result.insertId,
+            accessRecord.company_name,
+            full_name,
+            email,
+            result.insertId
+          ]
+        );
+      }
+    }
+
+    res.json({
+      message: role === "vendor"
+        ? "Vendor account registered successfully. You can now log in."
+        : "Account registered successfully. You can now log in."
+    });
   } catch (error) {
     if (error.code === "ER_DUP_ENTRY") {
-      return res.status(400).json({ message: "Email already exists." });
+      return res.status(400).json({ message: "Email already exists or access code already exists." });
     }
 
     console.error("Register error:", error);
-    res.status(500).json({ message: "Failed to register account." });
+    res.status(500).json({ message: error.sqlMessage || "Failed to register account." });
   }
 });
+
 
 app.post("/login", async (req, res) => {
   const { email, password } = req.body;
@@ -1663,11 +1864,6 @@ async function getAdminAssessmentBundle(assessmentId = null) {
           va.purpose,
           va.assessment_date,
           va.overall_status,
-          va.vendor_status,
-          va.employee_review_comment,
-          va.vendor_visible_reason,
-          va.employee_decision_by_user_id,
-          va.employee_decision_at,
           va.created_at,
           va.updated_at,
           v.company_name,
@@ -1695,11 +1891,6 @@ async function getAdminAssessmentBundle(assessmentId = null) {
           va.purpose,
           va.assessment_date,
           va.overall_status,
-          va.vendor_status,
-          va.employee_review_comment,
-          va.vendor_visible_reason,
-          va.employee_decision_by_user_id,
-          va.employee_decision_at,
           va.created_at,
           va.updated_at,
           v.company_name,
@@ -1894,11 +2085,6 @@ app.get("/admin/review-assessments", requireRole("employee"), async (_req, res) 
           va.purpose,
           va.assessment_date,
           va.overall_status,
-          va.vendor_status,
-          va.employee_review_comment,
-          va.vendor_visible_reason,
-          va.employee_decision_by_user_id,
-          va.employee_decision_at,
           va.created_at,
           va.updated_at,
           v.company_name,
@@ -2829,133 +3015,6 @@ const vendorSectionMeta = {
   infosec: { section_name: "Information Security", offset: 700 }
 };
 
-const vendorPortalQuestionBank = {
-  vendor_info: {
-    title: "Vendor Information Section",
-    breadcrumb: "Due Diligence Form / Vendor Information",
-    questions: vendorInformationQuestions
-  },
-  consumer: {
-    title: "Consumer Protection",
-    breadcrumb: "Due Diligence Form / Consumer",
-    questions: consumerQuestions
-  },
-  it_risk: {
-    title: "IT Risk Management",
-    breadcrumb: "Due Diligence Form / IT Risk Management",
-    questions: departmentQuestionGroups.it[0].questions
-  },
-  compliance: {
-    title: "Compliance & Governance",
-    breadcrumb: "Due Diligence Form / Compliance",
-    questions: departmentQuestionGroups.compliance[0].questions
-  },
-  resiliency: {
-    title: "Business Resiliency & BCP",
-    breadcrumb: "Due Diligence Form / Resiliency",
-    questions: resiliencyQuestions
-  },
-  data_privacy: {
-    title: "Data Privacy & Protection",
-    breadcrumb: "Due Diligence Form / Data Privacy",
-    questions: departmentQuestionGroups.dpo[0].questions
-  },
-  environmental: {
-    title: "Environmental & Social Risk",
-    breadcrumb: "Due Diligence Form / Environmental & Social Risk",
-    questions: departmentQuestionGroups.hr[0].questions
-  },
-  infosec: {
-    title: "Information Security Questionnaire",
-    breadcrumb: "Information Security / Form for IS",
-    questions: departmentQuestionGroups.infosec[0].questions
-  }
-};
-
-const vendorDdfSequence = [
-  "vendor_info",
-  "consumer",
-  "it_risk",
-  "compliance",
-  "resiliency",
-  "data_privacy",
-  "environmental"
-];
-
-const vendorSubmissionSequence = [...vendorDdfSequence, "infosec"];
-
-function getVendorPortalQuestionBankResponse() {
-  return {
-    due_diligence: vendorDdfSequence.map((sectionKey) => ({
-      section_key: sectionKey,
-      section_name: vendorSectionMeta[sectionKey].section_name,
-      title: vendorPortalQuestionBank[sectionKey].title,
-      breadcrumb: vendorPortalQuestionBank[sectionKey].breadcrumb,
-      questions: vendorPortalQuestionBank[sectionKey].questions
-    })),
-    information_security: [
-      {
-        section_key: "infosec",
-        section_name: vendorSectionMeta.infosec.section_name,
-        title: vendorPortalQuestionBank.infosec.title,
-        breadcrumb: vendorPortalQuestionBank.infosec.breadcrumb,
-        questions: vendorPortalQuestionBank.infosec.questions
-      }
-    ]
-  };
-}
-
-async function findMissingVendorSubmissionItems(employeeDepartmentAssessmentId) {
-  const rows = await runQuery(
-    `
-      SELECT
-        section_name,
-        question_index,
-        response,
-        explanation,
-        artifact_path,
-        artifact_name
-      FROM department_answers
-      WHERE department_assessment_id = ?
-    `,
-    [employeeDepartmentAssessmentId]
-  );
-
-  const answerMap = new Map();
-
-  rows.forEach((row) => {
-    answerMap.set(`${normalizeSectionName(row.section_name)}|${Number(row.question_index)}`, row);
-  });
-
-  const missing = [];
-
-  vendorSubmissionSequence.forEach((sectionKey) => {
-    const meta = vendorSectionMeta[sectionKey];
-    const questions = vendorPortalQuestionBank[sectionKey]?.questions || [];
-
-    questions.forEach((questionText, localIndex) => {
-      const dbIndex = Number(meta.offset || 0) + Number(localIndex);
-      const saved = answerMap.get(`${normalizeSectionName(meta.section_name)}|${dbIndex}`);
-
-      if (
-        !saved ||
-        !String(saved.response || "").trim() ||
-        !String(saved.explanation || "").trim() ||
-        !(saved.artifact_path || saved.artifact_name)
-      ) {
-        missing.push({
-          section_key: sectionKey,
-          section_name: meta.section_name,
-          question_index: localIndex,
-          question_text: questionText
-        });
-      }
-    });
-  });
-
-  return missing;
-}
-
 function vendorSectionKeyFromName(sectionName) {
   const normalized = normalizeSectionName(sectionName);
   const found = Object.entries(vendorSectionMeta).find(([, meta]) => {
@@ -2964,10 +3023,6 @@ function vendorSectionKeyFromName(sectionName) {
 
   return found ? found[0] : null;
 }
-
-app.get("/question-bank", requireAnyRole(["vendor", "employee", ...departmentRoles]), (_req, res) => {
-  res.json(getVendorPortalQuestionBankResponse());
-});
 
 async function getVendorOwnedAssessment(userId, assessmentId) {
   const rows = await runQuery(
@@ -2987,27 +3042,9 @@ async function getVendorOwnedAssessment(userId, assessmentId) {
         v.product_services_offered,
         v.contact_person_name,
         v.contact_email,
-        v.contact_phone,
-        employee_da.status AS employee_review_status,
-        COALESCE(
-          (
-            SELECT afl.reason
-            FROM assessment_feedback_logs afl
-            WHERE afl.assessment_id = va.assessment_id
-            AND afl.decision IN ('return', 'reject')
-            ORDER BY afl.created_at DESC, afl.feedback_id DESC
-            LIMIT 1
-          ),
-          NULLIF(va.vendor_visible_reason, ''),
-          NULLIF(va.employee_review_comment, ''),
-          NULLIF(employee_da.admin_comment, '')
-        ) AS employee_comment,
-        COALESCE(va.employee_decision_at, employee_da.approved_at) AS employee_decision_at
+        v.contact_phone
       FROM vendor_assessments va
       JOIN vendors v ON va.vendor_id = v.vendor_id
-      LEFT JOIN department_assessments employee_da
-        ON va.assessment_id = employee_da.assessment_id
-        AND employee_da.department_role = 'employee'
       WHERE va.assessment_id = ?
       AND v.user_id = ?
       LIMIT 1
@@ -3099,27 +3136,9 @@ app.get("/vendor/dashboard", requireVendor, async (req, res) => {
           va.created_at,
           va.updated_at,
           v.company_name,
-          v.product_services_offered,
-          employee_da.status AS employee_review_status,
-          COALESCE(
-          (
-            SELECT afl.reason
-            FROM assessment_feedback_logs afl
-            WHERE afl.assessment_id = va.assessment_id
-            AND afl.decision IN ('return', 'reject')
-            ORDER BY afl.created_at DESC, afl.feedback_id DESC
-            LIMIT 1
-          ),
-          NULLIF(va.vendor_visible_reason, ''),
-          NULLIF(va.employee_review_comment, ''),
-          NULLIF(employee_da.admin_comment, '')
-        ) AS employee_comment,
-          COALESCE(va.employee_decision_at, employee_da.approved_at) AS employee_decision_at
+          v.product_services_offered
         FROM vendor_assessments va
         JOIN vendors v ON va.vendor_id = v.vendor_id
-        LEFT JOIN department_assessments employee_da
-          ON va.assessment_id = employee_da.assessment_id
-          AND employee_da.department_role = 'employee'
         WHERE v.user_id = ?
         ORDER BY va.updated_at DESC, va.created_at DESC
       `,
@@ -3273,27 +3292,9 @@ app.post("/vendor/assessments", requireVendor, async (req, res) => {
           va.created_at,
           va.updated_at,
           v.company_name,
-          v.product_services_offered,
-          employee_da.status AS employee_review_status,
-          COALESCE(
-          (
-            SELECT afl.reason
-            FROM assessment_feedback_logs afl
-            WHERE afl.assessment_id = va.assessment_id
-            AND afl.decision IN ('return', 'reject')
-            ORDER BY afl.created_at DESC, afl.feedback_id DESC
-            LIMIT 1
-          ),
-          NULLIF(va.vendor_visible_reason, ''),
-          NULLIF(va.employee_review_comment, ''),
-          NULLIF(employee_da.admin_comment, '')
-        ) AS employee_comment,
-          COALESCE(va.employee_decision_at, employee_da.approved_at) AS employee_decision_at
+          v.product_services_offered
         FROM vendor_assessments va
         JOIN vendors v ON va.vendor_id = v.vendor_id
-        LEFT JOIN department_assessments employee_da
-          ON va.assessment_id = employee_da.assessment_id
-          AND employee_da.department_role = 'employee'
         WHERE va.assessment_id = ?
       `,
       [assessmentId]
@@ -3413,17 +3414,6 @@ app.post("/vendor/assessments/:assessment_id/save", requireVendor, upload.any(),
       [values]
     );
 
-    if (submitStatus === "Submitted") {
-      const missingSubmissionItems = await findMissingVendorSubmissionItems(employeeAssessment.department_assessment_id);
-
-      if (missingSubmissionItems.length > 0) {
-        return res.status(400).json({
-          message: "Complete all Due Diligence and Information Security questions before submitting.",
-          missing: missingSubmissionItems.slice(0, 15)
-        });
-      }
-    }
-
     const departmentStatus = submitStatus === "Submitted" ? "Pending Admin Approval" : "Draft";
     const assessmentStatus = submitStatus === "Submitted" ? "Pending Admin Approval" : "Draft";
 
@@ -3441,17 +3431,12 @@ app.post("/vendor/assessments/:assessment_id/save", requireVendor, upload.any(),
     await runQuery(
       `
         UPDATE vendor_assessments
-        SET
-            overall_status = ?,
+        SET overall_status = ?,
             vendor_status = ?,
-            employee_review_comment = CASE WHEN ? = 'Submitted' THEN NULL ELSE employee_review_comment END,
-            vendor_visible_reason = CASE WHEN ? = 'Submitted' THEN NULL ELSE vendor_visible_reason END,
-            employee_decision_by_user_id = CASE WHEN ? = 'Submitted' THEN NULL ELSE employee_decision_by_user_id END,
-            employee_decision_at = CASE WHEN ? = 'Submitted' THEN NULL ELSE employee_decision_at END,
             updated_at = CURRENT_TIMESTAMP
         WHERE assessment_id = ?
       `,
-      [assessmentStatus, submitStatus, submitStatus, submitStatus, submitStatus, submitStatus, assessmentId]
+      [assessmentStatus, submitStatus, assessmentId]
     );
 
     if (submitStatus === "Submitted") {
@@ -3474,367 +3459,6 @@ app.post("/vendor/assessments/:assessment_id/save", requireVendor, upload.any(),
   } catch (error) {
     console.error("Vendor save assessment error:", error);
     res.status(500).json({ message: "Failed to save vendor assessment." });
-  }
-});
-
-
-
-/* EMPLOYEE / COMPLIANCE OFFICER - VENDOR DUE DILIGENCE REVIEW */
-
-app.get("/employee/vendor-due-diligence", requireRole("employee"), async (_req, res) => {
-  try {
-    const assessments = await runQuery(
-      `
-        SELECT
-          va.assessment_id
-        FROM vendor_assessments va
-        JOIN vendors v ON va.vendor_id = v.vendor_id
-        LEFT JOIN users creator ON va.created_by_user_id = creator.user_id
-        WHERE va.vendor_status IN ('Submitted', 'Returned', 'Approved', 'Rejected')
-        OR creator.role = 'vendor'
-        OR v.user_id IS NOT NULL
-        ORDER BY va.updated_at DESC, va.created_at DESC
-      `
-    );
-
-    const bundles = [];
-
-    for (const row of assessments) {
-      const bundle = await getAdminAssessmentBundle(row.assessment_id);
-      if (bundle) {
-        bundles.push({
-          ...bundle,
-          display_status: bundle.vendor_status || bundle.overall_status || "Draft"
-        });
-      }
-    }
-
-    res.json({ assessments: bundles });
-  } catch (error) {
-    console.error("Employee vendor due diligence fetch error:", error);
-    res.status(500).json({ message: "Failed to load vendor due diligence submissions." });
-  }
-});
-
-app.post("/employee/vendor-due-diligence/:assessment_id/reason", requireRole("employee"), async (req, res) => {
-  const assessmentId = req.params.assessment_id;
-  const decision = String(req.body.decision || req.query.decision || "reject").trim();
-  const reason = String(
-    req.body.reason ||
-    req.body.comment ||
-    req.body.employee_reason ||
-    req.body.rejection_reason ||
-    req.body.return_reason ||
-    req.query.reason ||
-    req.query.comment ||
-    ""
-  ).trim();
-
-  if (!["return", "reject"].includes(decision)) {
-    return res.status(400).json({ message: "Invalid feedback decision." });
-  }
-
-  if (!reason) {
-    return res.status(400).json({ message: "Vendor-visible reason is required." });
-  }
-
-  try {
-    const rows = await runQuery(
-      `
-        SELECT va.assessment_id
-        FROM vendor_assessments va
-        WHERE va.assessment_id = ?
-        LIMIT 1
-      `,
-      [assessmentId]
-    );
-
-    if (!rows.length) {
-      return res.status(404).json({ message: "Vendor assessment not found." });
-    }
-
-    const employeeAssessment = await ensureDepartmentAssessment(assessmentId, "employee", "Draft");
-
-    await runQuery(
-      `
-        UPDATE vendor_assessments
-        SET
-          employee_review_comment = ?,
-          vendor_visible_reason = ?,
-          employee_decision_by_user_id = ?,
-          employee_decision_at = COALESCE(employee_decision_at, CURRENT_TIMESTAMP),
-          updated_at = CURRENT_TIMESTAMP
-        WHERE assessment_id = ?
-      `,
-      [reason, reason, req.session.user.user_id, assessmentId]
-    );
-
-    await runQuery(
-      `
-        UPDATE department_assessments
-        SET
-          admin_comment = ?,
-          updated_at = CURRENT_TIMESTAMP
-        WHERE department_assessment_id = ?
-      `,
-      [reason, employeeAssessment.department_assessment_id]
-    );
-
-    await recordAssessmentFeedback(assessmentId, decision, reason, req.session.user.user_id);
-
-    res.json({
-      message: "Vendor-visible reason saved.",
-      reason
-    });
-  } catch (error) {
-    console.error("Save vendor visible reason error:", error);
-    res.status(500).json({ message: error.sqlMessage || "Failed to save vendor-visible reason." });
-  }
-});
-
-app.get("/vendor/assessments/:assessment_id/feedback", requireVendor, async (req, res) => {
-  const assessmentId = req.params.assessment_id;
-
-  try {
-    const rows = await runQuery(
-      `
-        SELECT
-          va.assessment_id,
-          va.assessment_code,
-          va.vendor_status,
-          va.overall_status,
-          COALESCE(
-            (
-              SELECT afl.reason
-              FROM assessment_feedback_logs afl
-              WHERE afl.assessment_id = va.assessment_id
-              AND afl.decision IN ('return', 'reject')
-              ORDER BY afl.created_at DESC, afl.feedback_id DESC
-              LIMIT 1
-            ),
-            NULLIF(va.vendor_visible_reason, ''),
-            NULLIF(va.employee_review_comment, ''),
-            NULLIF(employee_da.admin_comment, '')
-          ) AS employee_comment
-        FROM vendor_assessments va
-        JOIN vendors v ON va.vendor_id = v.vendor_id
-        LEFT JOIN department_assessments employee_da
-          ON va.assessment_id = employee_da.assessment_id
-          AND employee_da.department_role = 'employee'
-        WHERE va.assessment_id = ?
-        AND v.user_id = ?
-        LIMIT 1
-      `,
-      [assessmentId, req.session.user.user_id]
-    );
-
-    if (!rows.length) {
-      return res.status(404).json({ message: "Assessment feedback not found." });
-    }
-
-    res.json({ feedback: rows[0] });
-  } catch (error) {
-    console.error("Fetch vendor feedback error:", error);
-    res.status(500).json({ message: error.sqlMessage || "Failed to load feedback." });
-  }
-});
-
-app.post("/employee/vendor-due-diligence/:assessment_id/decision", requireRole("employee"), async (req, res) => {
-  const assessmentId = req.params.assessment_id;
-  const { decision } = req.body;
-
-  const visibleReason = String(
-    req.body.comment ||
-    req.body.reason ||
-    req.body.employee_reason ||
-    req.body.rejection_reason ||
-    req.body.return_reason ||
-    req.query.comment ||
-    req.query.reason ||
-    ""
-  ).trim();
-
-  if (!["return", "reject", "approve"].includes(decision)) {
-    return res.status(400).json({ message: "Invalid decision." });
-  }
-
-  if (["return", "reject"].includes(decision) && !visibleReason) {
-    return res.status(400).json({
-      message: decision === "reject"
-        ? "Rejection reason is required and will be shown to the vendor."
-        : "Return reason is required and will be shown to the vendor."
-    });
-  }
-
-  try {
-    const rows = await runQuery(
-      `
-        SELECT
-          va.*,
-          v.vendor_id,
-          v.user_id AS vendor_user_id
-        FROM vendor_assessments va
-        JOIN vendors v ON va.vendor_id = v.vendor_id
-        WHERE va.assessment_id = ?
-        LIMIT 1
-      `,
-      [assessmentId]
-    );
-
-    if (!rows.length) {
-      return res.status(404).json({ message: "Vendor assessment not found." });
-    }
-
-    const assessment = rows[0];
-    const employeeAssessment = await ensureDepartmentAssessment(assessmentId, "employee", "Draft");
-
-    if (decision === "return") {
-      const reason = visibleReason || "Returned to vendor for revision.";
-
-      await runQuery(
-        `
-          UPDATE vendor_assessments
-          SET
-            vendor_status = 'Returned',
-            overall_status = 'Draft',
-            employee_review_comment = ?,
-            vendor_visible_reason = ?,
-            employee_decision_by_user_id = ?,
-            employee_decision_at = CURRENT_TIMESTAMP,
-            updated_at = CURRENT_TIMESTAMP
-          WHERE assessment_id = ?
-        `,
-        [reason, reason, req.session.user.user_id, assessmentId]
-      );
-
-      await runQuery(
-        `
-          UPDATE department_assessments
-          SET
-            status = 'Draft',
-            admin_comment = ?,
-            approved_at = NULL,
-            updated_at = CURRENT_TIMESTAMP
-          WHERE department_assessment_id = ?
-        `,
-        [reason, employeeAssessment.department_assessment_id]
-      );
-
-      await runQuery(`UPDATE vendors SET overall_status = 'Pending' WHERE vendor_id = ?`, [assessment.vendor_id]);
-
-      await recordAssessmentFeedback(assessmentId, "return", reason, req.session.user.user_id);
-
-      return res.json({
-        message: "Vendor submission returned for revision.",
-        vendor_visible_reason: reason
-      });
-    }
-
-    if (decision === "reject") {
-      const reason = visibleReason || "Rejected by Employee / Compliance Officer.";
-
-      await runQuery(
-        `
-          UPDATE vendor_assessments
-          SET
-            vendor_status = 'Rejected',
-            overall_status = 'Rejected',
-            employee_review_comment = ?,
-            vendor_visible_reason = ?,
-            employee_decision_by_user_id = ?,
-            employee_decision_at = CURRENT_TIMESTAMP,
-            updated_at = CURRENT_TIMESTAMP
-          WHERE assessment_id = ?
-        `,
-        [reason, reason, req.session.user.user_id, assessmentId]
-      );
-
-      await runQuery(
-        `
-          UPDATE department_assessments
-          SET
-            status = 'Rejected',
-            admin_comment = ?,
-            approved_at = CURRENT_TIMESTAMP,
-            updated_at = CURRENT_TIMESTAMP
-          WHERE department_assessment_id = ?
-        `,
-        [reason, employeeAssessment.department_assessment_id]
-      );
-
-      await runQuery(`UPDATE vendors SET overall_status = 'Rejected' WHERE vendor_id = ?`, [assessment.vendor_id]);
-
-      await recordAssessmentFeedback(assessmentId, "reject", reason, req.session.user.user_id);
-
-      return res.json({
-        message: "Vendor submission rejected.",
-        vendor_visible_reason: reason
-      });
-    }
-
-    const missingSubmissionItems = await findMissingVendorSubmissionItems(employeeAssessment.department_assessment_id);
-
-    if (missingSubmissionItems.length > 0) {
-      return res.status(400).json({
-        message: "This vendor submission is still incomplete and cannot be approved for department review.",
-        missing: missingSubmissionItems.slice(0, 15)
-      });
-    }
-
-    await createAllDepartmentAssessments(assessmentId);
-
-    const approvalComment = visibleReason || req.body.comment || "Approved for department review.";
-
-    await runQuery(
-      `
-        UPDATE department_assessments
-        SET
-          status = 'Approved',
-          admin_comment = ?,
-          approved_at = CURRENT_TIMESTAMP,
-          updated_at = CURRENT_TIMESTAMP
-        WHERE assessment_id = ?
-        AND department_role = 'employee'
-      `,
-      [approvalComment, assessmentId]
-    );
-
-    await runQuery(
-      `
-        UPDATE department_assessments
-        SET status = CASE WHEN status = 'Draft' THEN 'Pending' ELSE status END
-        WHERE assessment_id = ?
-        AND department_role <> 'employee'
-      `,
-      [assessmentId]
-    );
-
-    await runQuery(
-      `
-        UPDATE vendor_assessments
-        SET
-          vendor_status = 'Approved',
-          overall_status = 'In Review',
-          employee_review_comment = ?,
-          vendor_visible_reason = NULL,
-          employee_decision_by_user_id = ?,
-          employee_decision_at = CURRENT_TIMESTAMP,
-          updated_at = CURRENT_TIMESTAMP
-        WHERE assessment_id = ?
-      `,
-      [approvalComment, req.session.user.user_id, assessmentId]
-    );
-
-    await runQuery(`UPDATE vendors SET overall_status = 'In Review' WHERE vendor_id = ?`, [assessment.vendor_id]);
-
-    await recordAssessmentFeedback(assessmentId, "approve", approvalComment, req.session.user.user_id);
-
-    res.json({ message: "Vendor submission approved and routed to departments." });
-  } catch (error) {
-    console.error("Employee vendor due diligence decision error:", error);
-    res.status(500).json({
-      message: error.sqlMessage || "Failed to save vendor due diligence decision."
-    });
   }
 });
 

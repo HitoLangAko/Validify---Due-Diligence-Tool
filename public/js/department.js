@@ -136,6 +136,7 @@ const defaultPageByRole = {
 
 const customPageLabels = {
   dashboard: "Dashboard",
+  "vendor-access": "Vendor Access",
   "add-vendor": "Insert Vendor",
   "my-submissions": "My Submissions",
   "vendor-queue": "Vendor Queue",
@@ -241,6 +242,17 @@ const profileFirstName = document.getElementById("profileFirstName");
 const profileLastName = document.getElementById("profileLastName");
 const profileJobTitle = document.getElementById("profileJobTitle");
 const profileWorkEmail = document.getElementById("profileWorkEmail");
+
+const vendorAccessForm = document.getElementById("vendorAccessForm");
+const vendorAccessEmail = document.getElementById("vendorAccessEmail");
+const vendorAccessCompany = document.getElementById("vendorAccessCompany");
+const vendorAccessExpires = document.getElementById("vendorAccessExpires");
+const vendorAccessResult = document.getElementById("vendorAccessResult");
+const vendorAccessGeneratedCode = document.getElementById("vendorAccessGeneratedCode");
+const copyVendorAccessCodeBtn = document.getElementById("copyVendorAccessCodeBtn");
+const vendorAccessTableBody = document.getElementById("vendorAccessTableBody");
+let vendorAccessRows = [];
+
 
 function getRoleLabel(role = currentRole) {
   return roleLabels[role] || role || "User";
@@ -739,7 +751,9 @@ function applyRoleLayout() {
     if (currentRole === "employee") {
       roleHelper.textContent = "Standard Employee Portal: add vendors and create the main vendor assessment request.";
     } else if (isDepartmentRole()) {
-      roleHelper.textContent = `${label} Console: answer your department form for shared vendor assessments.`;
+      roleHelper.textContent = currentRole === "infosec"
+        ? "InfoSec Console: review vendor security risks and issue vendor registration access codes."
+        : `${label} Console: answer your department form for shared vendor assessments.`;
     } else if (currentRole === "admin") {
       roleHelper.textContent = "Compliance Officer Portal: monitor vendors and department reviews.";
     }
@@ -800,6 +814,10 @@ async function refreshCurrentPage(_page = getCurrentPage()) {
     }
     if (isDepartmentRole()) {
       await loadDepartmentWorkflowData();
+
+      if (currentRole === "infosec" && _page === "vendor-access") {
+        await loadVendorAccessData();
+      }
     }
     if (currentRole === "admin") {
       await loadAdminData();
@@ -2196,7 +2214,109 @@ async function generateAdminExcel() {
   }
 }
 
+
+async function loadVendorAccessData() {
+  if (currentRole !== "infosec") return;
+
+  vendorAccessRows = await api("/infosec/vendor-access");
+  renderVendorAccessTable();
+}
+
+function renderVendorAccessTable() {
+  if (!vendorAccessTableBody) return;
+
+  if (!vendorAccessRows.length) {
+    vendorAccessTableBody.innerHTML = `<tr><td colspan="7" class="empty-cell">No vendor access codes yet.</td></tr>`;
+    return;
+  }
+
+  vendorAccessTableBody.innerHTML = vendorAccessRows.map((item) => {
+    const canRevoke = item.status === "ACTIVE";
+
+    return `
+      <tr>
+        <td><strong>${escapeHTML(item.access_code)}</strong></td>
+        <td>${escapeHTML(item.vendor_email || "—")}</td>
+        <td>${escapeHTML(item.company_name || "—")}</td>
+        <td><span class="status-pill ${statusClass(item.status)}">${escapeHTML(item.status)}</span></td>
+        <td>${escapeHTML(formatDate(item.created_at))}</td>
+        <td>${escapeHTML(item.used_by || "—")}</td>
+        <td>
+          ${canRevoke
+            ? `<button type="button" class="red-action-btn" onclick="revokeVendorAccessCode(${Number(item.access_id)})">Revoke</button>`
+            : `<span class="muted">No action</span>`
+          }
+        </td>
+      </tr>
+    `;
+  }).join("");
+}
+
+async function submitVendorAccessForm(event) {
+  event.preventDefault();
+
+  const payload = {
+    vendor_email: vendorAccessEmail?.value.trim() || "",
+    company_name: vendorAccessCompany?.value.trim() || "",
+    expires_at: vendorAccessExpires?.value || ""
+  };
+
+  try {
+    const data = await api("/infosec/vendor-access", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+
+    if (vendorAccessGeneratedCode) {
+      vendorAccessGeneratedCode.textContent = data?.access?.access_code || "—";
+    }
+
+    if (vendorAccessResult) {
+      vendorAccessResult.classList.remove("hidden");
+    }
+
+    vendorAccessForm?.reset();
+    await loadVendorAccessData();
+    showToast(data.message || "Vendor access code generated.");
+  } catch (error) {
+    alert(error.message || "Failed to create vendor access code.");
+  }
+}
+
+async function revokeVendorAccessCode(accessId) {
+  if (!confirm("Revoke this vendor registration access code?")) return;
+
+  try {
+    const data = await api(`/infosec/vendor-access/${accessId}/revoke`, {
+      method: "PATCH",
+      body: JSON.stringify({})
+    });
+
+    await loadVendorAccessData();
+    showToast(data.message || "Vendor access code revoked.");
+  } catch (error) {
+    alert(error.message || "Failed to revoke vendor access code.");
+  }
+}
+
+async function copyVendorAccessCode() {
+  const code = vendorAccessGeneratedCode?.textContent?.trim();
+
+  if (!code || code === "—") return;
+
+  try {
+    await navigator.clipboard.writeText(code);
+    showToast("Vendor access code copied.");
+  } catch (_error) {
+    alert(`Copy this code: ${code}`);
+  }
+}
+
+
 function setupEvents() {
+  if (vendorAccessForm) vendorAccessForm.addEventListener("submit", submitVendorAccessForm);
+  if (copyVendorAccessCodeBtn) copyVendorAccessCodeBtn.addEventListener("click", copyVendorAccessCode);
+
   document.querySelectorAll("[data-page]").forEach((button) => {
     button.addEventListener("click", () => showPage(button.dataset.page));
   });

@@ -1,3 +1,4 @@
+.hidden { display: none !important; }
 /* LOGIN CSS - moved out from login.html */
 * {
       box-sizing: border-box;
@@ -153,3 +154,11 @@
         font-size: 36px;
       }
     }
+
+.vendor-access-hint {
+  margin: -10px 0 18px;
+  color: #5d6f8b;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}

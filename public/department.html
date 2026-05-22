@@ -21,6 +21,10 @@
 <i class="fa-solid fa-house"></i>
 <span>Dashboard</span>
 </button>
+<button class="nav-link" data-page="vendor-access" data-roles="infosec" type="button">
+<i class="fa-solid fa-key"></i>
+<span>Vendor Access</span>
+</button>
 
 <button class="nav-link" data-page="vendor-assessment" data-roles="employee,it,infosec,management,dpo,hr,compliance" id="vendorAssessmentNavBtn" type="button">
 <i class="fa-solid fa-clipboard-check"></i>
@@ -170,6 +174,72 @@
 <thead id="dashboardTableHead"></thead>
 <tbody id="dashboardTableBody">
 <tr><td class="empty-cell">Loading...</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+</section>
+
+<section class="page" id="vendorAccessPage">
+<div class="content-card vendor-access-card">
+<div class="section-header">
+<h3>Vendor Registration Access</h3>
+<p class="muted">Create one-time access codes that allow vendors to register their own account.</p>
+</div>
+
+<form id="vendorAccessForm" class="vendor-access-form">
+<div class="form-grid two-col">
+<div class="field-group">
+<label>Vendor Email</label>
+<input id="vendorAccessEmail" type="email" placeholder="vendor@email.com" required/>
+</div>
+<div class="field-group">
+<label>Vendor Company Name</label>
+<input id="vendorAccessCompany" type="text" placeholder="Company name"/>
+</div>
+</div>
+<div class="form-grid two-col">
+<div class="field-group">
+<label>Expiration Date</label>
+<input id="vendorAccessExpires" type="date"/>
+</div>
+<div class="field-group access-action-field">
+<label>&nbsp;</label>
+<button type="submit" class="submit-draft-btn vendor-access-create-btn">
+<i class="fa-solid fa-key"></i>
+Generate Access Code
+</button>
+</div>
+</div>
+</form>
+
+<div class="vendor-access-result hidden" id="vendorAccessResult">
+<p class="vendor-access-title">Vendor access code generated</p>
+<div class="vendor-access-code-row">
+<code id="vendorAccessGeneratedCode">—</code>
+<button type="button" class="small-action-btn" id="copyVendorAccessCodeBtn">
+<i class="fa-solid fa-copy"></i>
+Copy
+</button>
+</div>
+<p class="muted">Send this code to the vendor. The vendor must enter it on the Register page.</p>
+</div>
+
+<div class="table-wrap vendor-access-table-wrap">
+<table>
+<thead>
+<tr>
+<th>Access Code</th>
+<th>Vendor Email</th>
+<th>Company</th>
+<th>Status</th>
+<th>Created</th>
+<th>Used By</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody id="vendorAccessTableBody">
+<tr><td colspan="7" class="empty-cell">No vendor access codes yet.</td></tr>
 </tbody>
 </table>
 </div>

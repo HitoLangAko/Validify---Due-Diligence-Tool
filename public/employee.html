@@ -33,11 +33,6 @@
             <span>Dashboard</span>
           </button>
 
-          <button class="nav-link" data-page="vendors-due-diligence" data-roles="employee" type="button">
-            <i class="fa-solid fa-file-circle-check"></i>
-            <span>Vendors Due Diligence</span>
-          </button>
-
           <button class="nav-link" data-page="add-vendor" data-roles="employee" type="button">
             <i class="fa-solid fa-plus"></i>
             <span>Insert Vendor</span>
@@ -244,69 +239,6 @@
                 <tr><td class="empty-cell">Loading...</td></tr>
               </tbody>
             </table>
-          </div>
-        </div>
-      </section>
-
-      <section class="page" id="vendorsDueDiligencePage">
-        <div class="content-card vendor-dd-review-card">
-          <div class="section-header">
-            <h3>Vendors Due Diligence</h3>
-            <p>Select a vendor-created assessment to review the submitted Due Diligence and Information Security answers.</p>
-          </div>
-
-          <div class="field-group">
-            <label>Select Vendor Assessment</label>
-            <select id="vendorDueDiligenceSelect">
-              <option value="">Select vendor assessment</option>
-            </select>
-          </div>
-
-          <div class="assessment-meta-info vendor-dd-meta" id="vendorDueDiligenceMeta">
-            <div class="review-row">
-              <span class="review-label">Assessment ID</span>
-              <span class="review-value">—</span>
-            </div>
-            <div class="review-row">
-              <span class="review-label">Vendor</span>
-              <span class="review-value">—</span>
-            </div>
-            <div class="review-row">
-              <span class="review-label">Purpose</span>
-              <span class="review-value">—</span>
-            </div>
-            <div class="review-row">
-              <span class="review-label">Status</span>
-              <span class="status-pill status-pending">Pending</span>
-            </div>
-          </div>
-
-          <div class="review-tabs vendor-dd-tabs">
-            <button type="button" class="tab-button active" data-vendor-dd-tab="ddf">Due Diligence Form</button>
-            <button type="button" class="tab-button" data-vendor-dd-tab="is">Information Security</button>
-          </div>
-
-          <div id="vendorDdfPanel" class="vendor-dd-panel active">
-            <div id="vendorDdfBody" class="admin-ddf-review-wrap">
-              <p class="empty-cell">Select a vendor assessment to view Due Diligence answers.</p>
-            </div>
-          </div>
-
-          <div id="vendorIsPanel" class="vendor-dd-panel hidden">
-            <div id="vendorIsBody" class="admin-ddf-review-wrap">
-              <p class="empty-cell">Select a vendor assessment to view Information Security answers.</p>
-            </div>
-          </div>
-
-          <div class="field-group vendor-dd-decision-note">
-            <label>Employee Review Note <span class="optional-label">(Optional / Internal)</span></label>
-            <textarea id="vendorDueDiligenceDecisionNote" placeholder="Optional internal note for approval or tracking. Return and rejection reasons are entered in a separate reason panel."></textarea>
-          </div>
-
-          <div class="vendor-dd-actions">
-            <button type="button" class="clear-form-btn" id="returnVendorDueDiligenceBtn" disabled>Return to Vendor</button>
-            <button type="button" class="red-action-btn" id="rejectVendorDueDiligenceBtn" disabled>Reject</button>
-            <button type="button" class="submit-draft-btn" id="approveVendorDueDiligenceBtn" disabled>Approve for Department Review</button>
           </div>
         </div>
       </section>

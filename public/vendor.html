@@ -25,11 +25,6 @@
             <span>Dashboard</span>
           </button>
 
-          <button class="nav-item" type="button" data-page="my-submissions">
-            <i class="fa-solid fa-folder-open"></i>
-            <span>My Submissions</span>
-          </button>
-
           <button class="nav-item" type="button" data-page="credentials">
             <i class="fa-solid fa-building"></i>
             <span>Vendor Credentials</span>
@@ -187,72 +182,6 @@
                 </tr>
               </thead>
               <tbody id="recentAssessmentBody"></tbody>
-            </table>
-          </div>
-        </section>
-      </section>
-
-      <section class="page" id="mySubmissionsPage">
-        <span class="page-label">Vendor Portal / My Submissions</span>
-        <header class="top-bar simple-topbar">
-          <h1 class="page-title">My Submissions</h1>
-        </header>
-
-        <div class="validify-card submission-status-panel" id="submissionStatusPanel">
-          <div class="submission-status-header">
-            <div>
-              <span class="mini-label">Selected Assessment</span>
-              <h3 id="selectedSubmissionTitle">No assessment selected</h3>
-            </div>
-            <span class="status-pill status-draft" id="selectedSubmissionStatus">Draft</span>
-          </div>
-
-          <div class="submission-detail-grid">
-            <div>
-              <span class="mini-label">Vendor</span>
-              <strong id="selectedSubmissionVendor">—</strong>
-            </div>
-            <div>
-              <span class="mini-label">Purpose</span>
-              <strong id="selectedSubmissionPurpose">—</strong>
-            </div>
-            <div>
-              <span class="mini-label">Date Modified</span>
-              <strong id="selectedSubmissionDate">—</strong>
-            </div>
-          </div>
-
-          <div class="vendor-feedback-panel hidden" id="vendorFeedbackPanel">
-            <div class="feedback-icon"><i class="fa-solid fa-circle-exclamation"></i></div>
-            <div>
-              <h4 id="vendorFeedbackTitle">Employee Feedback</h4>
-              <p id="vendorFeedbackText">No feedback available.</p>
-            </div>
-          </div>
-        </div>
-
-        <section class="validify-card table-card">
-          <div class="section-head-row">
-            <h3 class="section-title">Submission Tracking</h3>
-            <button class="secondary-btn" type="button" id="refreshSubmissionsBtn">
-              <i class="fa-solid fa-rotate"></i>
-              Refresh
-            </button>
-          </div>
-          <div class="table-responsive">
-            <table class="assessment-table">
-              <thead>
-                <tr>
-                  <th>Assessment ID</th>
-                  <th>Vendor</th>
-                  <th>Purpose</th>
-                  <th>Status</th>
-                  <th>Employee Reason / Note</th>
-                  <th>Date Modified</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody id="mySubmissionsBody"></tbody>
             </table>
           </div>
         </section>
