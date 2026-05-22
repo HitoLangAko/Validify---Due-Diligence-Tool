@@ -20,12 +20,49 @@ function getRedirectPage(role) {
 
 function showMessage(message, type = "error") {
   if (!messageBox) return;
+
   messageBox.textContent = message;
   messageBox.className = `message show ${type}`;
 }
 
+function showVerifyMessage(message, email) {
+  if (!messageBox) return;
+
+  messageBox.className = "message show error";
+  messageBox.innerHTML = `
+    <div>${message}</div>
+    <button type="button" id="resendVerificationBtn" class="message-action-btn">
+      Resend verification email
+    </button>
+  `;
+
+  const resendBtn = document.getElementById("resendVerificationBtn");
+
+  if (resendBtn) {
+    resendBtn.addEventListener("click", async () => {
+      try {
+        resendBtn.disabled = true;
+        resendBtn.textContent = "Sending...";
+
+        const data = await api("/resend-verification", {
+          method: "POST",
+          body: JSON.stringify({ email })
+        });
+
+        showMessage(
+          data.message || "Verification email sent. Please check your inbox.",
+          "success"
+        );
+      } catch (error) {
+        showMessage(error.message || "Failed to resend verification email.");
+      }
+    });
+  }
+}
+
 function clearMessage() {
   if (!messageBox) return;
+
   messageBox.textContent = "";
   messageBox.className = "message";
 }
@@ -49,7 +86,7 @@ async function api(url, options = {}) {
   }
 
   if (!response.ok) {
-    throw new Error(data?.message || "Request failed.");
+    throw new Error(data?.message || `Request failed (${response.status}).`);
   }
 
   return data;
@@ -74,7 +111,6 @@ window.addEventListener("pageshow", (event) => {
     redirectIfAlreadyLoggedIn();
   }
 });
-
 
 function toggleVendorAccessCodeField() {
   const isVendor = registerRole?.value === "vendor";
@@ -107,7 +143,10 @@ document.querySelectorAll("[data-auth-tab]").forEach((button) => {
     if (loginForm) loginForm.classList.toggle("active", tab === "login");
     if (registerForm) registerForm.classList.toggle("active", tab === "register");
 
-    if (authTitle) authTitle.textContent = tab === "login" ? "Login" : "Create an Account";
+    if (authTitle) {
+      authTitle.textContent = tab === "login" ? "Login" : "Create an Account";
+    }
+
     clearMessage();
   });
 });
@@ -117,8 +156,10 @@ if (loginForm) {
     event.preventDefault();
     clearMessage();
 
+    const email = document.getElementById("loginEmail").value.trim();
+
     const payload = {
-      email: document.getElementById("loginEmail").value.trim(),
+      email,
       password: document.getElementById("loginPassword").value
     };
 
@@ -136,7 +177,13 @@ if (loginForm) {
 
       window.location.replace(getRedirectPage(role));
     } catch (error) {
-      showMessage(error.message || "Failed to login.");
+      const message = error.message || "Failed to login.";
+
+      if (message.toLowerCase().includes("verify your email")) {
+        showVerifyMessage(message, email);
+      } else {
+        showMessage(message);
+      }
     }
   });
 }
@@ -167,7 +214,12 @@ if (registerForm) {
       registerForm.reset();
       toggleVendorAccessCodeField();
       document.querySelector('[data-auth-tab="login"]')?.click();
-      showMessage(data.message || "Account created. You can now log in.", "success");
+
+      showMessage(
+        data.message ||
+          "Account registered successfully. Please check your email to verify your account before logging in.",
+        "success"
+      );
     } catch (error) {
       showMessage(error.message || "Failed to register account.");
     }
