@@ -1897,6 +1897,12 @@ async function submitAssessmentDecision(decision) {
     return;
   }
 
+  // --- NEW LOGIC: Intercept "Rejected" to show the modal instead of the default confirm box ---
+  if (decision === "Rejected") {
+    openRejectModal(assessmentSummaryData.assessment.assessment_id);
+    return; // Stop here so the modal can handle the final submission
+  }
+
   if (!confirm(`Are you sure you want to ${decision.toLowerCase()} this assessment?`)) {
     return;
   }
@@ -2405,9 +2411,14 @@ async function submitVendorDueDiligenceDecision(decision) {
     return;
   }
 
+  /* rejection assessment */
+  if (decision === "reject") {
+    openRejectModal(selectedVendorDueDiligence.assessment_id);
+    return; // Stops the browser's default confirm box
+  }
+
   const labels = {
     return: "return this submission to the vendor",
-    reject: "reject this vendor submission",
     approve: "approve this submission for department review"
   };
 
@@ -2610,6 +2621,50 @@ if (profileForm) {
   });
   if (signoffForm) signoffForm.addEventListener("submit", submitSignoff);
   if (cancelSignoffBtn) cancelSignoffBtn.addEventListener("click", () => showPage("dashboard"));
+}
+
+/* rejectAssessment*/
+let currentAssessmentIdToReject = null;
+
+function openRejectModal(assessmentId) {
+  currentAssessmentIdToReject = assessmentId;
+  document.getElementById('rejectionReasonInput').value = '';
+  document.getElementById('rejectInputModal').style.display = 'flex';
+}
+
+function closeRejectModal() {
+  currentAssessmentIdToReject = null;
+  document.getElementById('rejectInputModal').style.display = 'none';
+}
+
+async function submitRejection() {
+  const reasonText = document.getElementById('rejectionReasonInput').value.trim();
+
+  if (!reasonText) {
+    alert("Please enter a specific reason for rejection.");
+    return;
+  }
+
+  try {
+    // This URL matches the Vendors Due Diligence page
+    await api(`/employee/vendor-due-diligence/${currentAssessmentIdToReject}/decision`, {
+      method: "POST",
+      body: JSON.stringify({ 
+        decision: "reject",
+        comment: reasonText, 
+        rejection_reason: reasonText 
+      })
+    });
+
+    showToast("Assessment rejected successfully.");
+    closeRejectModal();
+    
+    // Refresh the table
+    selectedVendorDueDiligence = null;
+    await loadVendorDueDiligenceData();
+  } catch (error) {
+    alert(error.message);
+  }
 }
 
 setupAddVendorForm();

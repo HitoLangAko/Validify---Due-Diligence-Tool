@@ -379,6 +379,25 @@ async function loadVendorDashboard() {
   if (accountName) accountName.textContent = displayName;
   if (menuName) menuName.textContent = displayName;
 
+  // VENDOR REJECTION MODAL LOGIC
+  // Find the first assessment that is Rejected or Returned and has a reason
+  const rejectedAssessment = assessments.find(item => 
+    (item.vendor_status === 'Rejected' || item.overall_status === 'Rejected' || 
+     item.vendor_status === 'Returned' || item.overall_status === 'Returned') 
+    && item.rejection_reason
+  );
+
+  if (rejectedAssessment) {
+      const reasonBox = document.getElementById('vendorRejectionReasonText');
+      const modal = document.getElementById('vendorRejectionModal');
+      
+      if (reasonBox && modal) {
+          reasonBox.textContent = `"${rejectedAssessment.rejection_reason}"`;
+          modal.style.display = 'flex';
+      }
+  }
+  // =========================================
+
   populateAssessmentControls();
   renderDashboard();
 }

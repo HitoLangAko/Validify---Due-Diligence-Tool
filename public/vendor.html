@@ -327,6 +327,20 @@
     </main>
   </div>
 
+/* vendor's view for rejection */
+  <div id="vendorRejectionModal" class="vendor-rejection-overlay" style="display: none;">
+    <div class="vendor-rejection-card">
+        <h3>Assessment Returned</h3>
+        <p>The compliance auditing team has returned your assessment for the following reason:</p>
+        
+        <div id="vendorRejectionReasonText" class="vendor-rejection-reason-box">
+            Loading reason...
+        </div>
+        
+        <button onclick="document.getElementById('vendorRejectionModal').style.display='none'" class="vendor-close-modal-btn">Close Window</button>
+    </div>
+</div>
+
   <script src="js/vendor.js"></script>
 </body>
 </html>
