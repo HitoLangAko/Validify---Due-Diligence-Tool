@@ -253,6 +253,7 @@ const approveVendorDueDiligenceBtn = document.getElementById("approveVendorDueDi
 
 let vendorDueDiligenceRows = [];
 let selectedVendorDueDiligence = null;
+let pendingVendorDueDiligenceDecision = null;
 
 function getRoleLabel(role = currentRole) {
   return roleLabels[role] || role || "User";
@@ -2399,7 +2400,133 @@ function switchVendorDueDiligenceTab(tabName, clickedButton) {
   if (panel) panel.classList.remove("hidden");
 }
 
-async function submitVendorDueDiligenceDecision(decision) {
+
+function getVendorDueDiligenceDecisionLabel(decision) {
+  if (decision === "return") return "Return to Vendor";
+  if (decision === "reject") return "Reject Submission";
+  return "Approve for Department Review";
+}
+
+function ensureVendorDueDiligenceReasonModal() {
+  let modal = document.getElementById("vendorDecisionReasonModal");
+
+  if (modal) return modal;
+
+  modal = document.createElement("div");
+  modal.id = "vendorDecisionReasonModal";
+  modal.className = "decision-modal-overlay hidden";
+  modal.innerHTML = `
+    <div class="decision-modal-card">
+      <div class="decision-modal-head">
+        <div>
+          <span class="mini-label" id="vendorDecisionModalKicker">Decision Reason</span>
+          <h3 id="vendorDecisionModalTitle">Basis for Decision</h3>
+        </div>
+        <button type="button" class="decision-modal-close" id="closeVendorDecisionModal" aria-label="Close decision reason panel">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <p class="decision-modal-help" id="vendorDecisionModalHelp">
+        This reason will be saved in the database and shown to the vendor in My Submissions.
+      </p>
+
+      <div class="field-group">
+        <label id="vendorDecisionReasonLabel">Reason <span class="required-mark">*</span></label>
+        <textarea
+          id="vendorDecisionReasonText"
+          placeholder="State the missing artifacts, incomplete answers, or failed compliance requirement here..."
+        ></textarea>
+      </div>
+
+      <div class="decision-modal-actions">
+        <button type="button" class="clear-form-btn" id="cancelVendorDecisionReasonBtn">Cancel</button>
+        <button type="button" class="red-action-btn" id="confirmVendorDecisionReasonBtn">Confirm</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  const closeModal = () => {
+    pendingVendorDueDiligenceDecision = null;
+    modal.classList.add("hidden");
+  };
+
+  modal.querySelector("#closeVendorDecisionModal")?.addEventListener("click", closeModal);
+  modal.querySelector("#cancelVendorDecisionReasonBtn")?.addEventListener("click", closeModal);
+  modal.addEventListener("click", (event) => {
+    if (event.target === modal) closeModal();
+  });
+  modal.querySelector("#confirmVendorDecisionReasonBtn")?.addEventListener("click", confirmVendorDueDiligenceReasonDecision);
+
+  return modal;
+}
+
+function openVendorDueDiligenceReasonModal(decision) {
+  if (!selectedVendorDueDiligence?.assessment_id) {
+    alert("Please select a vendor assessment first.");
+    return;
+  }
+
+  pendingVendorDueDiligenceDecision = decision;
+  const modal = ensureVendorDueDiligenceReasonModal();
+  const title = modal.querySelector("#vendorDecisionModalTitle");
+  const kicker = modal.querySelector("#vendorDecisionModalKicker");
+  const help = modal.querySelector("#vendorDecisionModalHelp");
+  const label = modal.querySelector("#vendorDecisionReasonLabel");
+  const textArea = modal.querySelector("#vendorDecisionReasonText");
+  const confirmBtn = modal.querySelector("#confirmVendorDecisionReasonBtn");
+
+  const isReject = decision === "reject";
+
+  if (kicker) kicker.textContent = isReject ? "Basis for Rejection" : "Basis for Return";
+  if (title) title.textContent = isReject ? "Basis for Rejection" : "Basis for Return to Vendor";
+  if (help) {
+    help.textContent = isReject
+      ? "Provide the specific reason for rejecting this submission. This will be visible to the vendor."
+      : "Provide the specific corrections needed before the vendor resubmits. This will be visible to the vendor.";
+  }
+  if (label) {
+    label.innerHTML = `${isReject ? "Rejection Reason" : "Return / Revision Reason"} <span class="required-mark">*</span>`;
+  }
+  if (textArea) {
+    textArea.value = "";
+    textArea.placeholder = isReject
+      ? "Example: Missing required PDF artifacts, incomplete answers, or failed compliance requirement..."
+      : "Example: Please upload the missing PDF, complete the unanswered sections, or clarify the vendor response...";
+  }
+  if (confirmBtn) {
+    confirmBtn.textContent = isReject ? "Confirm Rejection" : "Confirm Return";
+    confirmBtn.classList.toggle("return-mode", !isReject);
+  }
+
+  modal.classList.remove("hidden");
+  setTimeout(() => textArea?.focus(), 50);
+}
+
+async function confirmVendorDueDiligenceReasonDecision() {
+  const modal = ensureVendorDueDiligenceReasonModal();
+  const textArea = modal.querySelector("#vendorDecisionReasonText");
+  const reason = textArea?.value.trim() || "";
+
+  if (!pendingVendorDueDiligenceDecision) {
+    modal.classList.add("hidden");
+    return;
+  }
+
+  if (!reason) {
+    alert("Please enter the reason. This is required so the vendor can see why the submission was not accepted.");
+    textArea?.focus();
+    return;
+  }
+
+  await submitVendorDueDiligenceDecision(pendingVendorDueDiligenceDecision, reason);
+  pendingVendorDueDiligenceDecision = null;
+  modal.classList.add("hidden");
+}
+
+async function submitVendorDueDiligenceDecision(decision, forcedReason = null) {
   if (!selectedVendorDueDiligence?.assessment_id) {
     alert("Please select a vendor assessment first.");
     return;
@@ -2411,11 +2538,12 @@ async function submitVendorDueDiligenceDecision(decision) {
     approve: "approve this submission for department review"
   };
 
-  const decisionComment = vendorDueDiligenceDecisionNote?.value.trim() || "";
+  const decisionComment = forcedReason !== null
+    ? forcedReason
+    : (vendorDueDiligenceDecisionNote?.value.trim() || "");
 
   if (["return", "reject"].includes(decision) && !decisionComment) {
-    alert("Please enter the reason first. This will be shown to the vendor in My Submissions.");
-    vendorDueDiligenceDecisionNote?.focus();
+    openVendorDueDiligenceReasonModal(decision);
     return;
   }
 
@@ -2457,11 +2585,11 @@ function setupEvents() {
   }
 
   if (returnVendorDueDiligenceBtn) {
-    returnVendorDueDiligenceBtn.addEventListener("click", () => submitVendorDueDiligenceDecision("return"));
+    returnVendorDueDiligenceBtn.addEventListener("click", () => openVendorDueDiligenceReasonModal("return"));
   }
 
   if (rejectVendorDueDiligenceBtn) {
-    rejectVendorDueDiligenceBtn.addEventListener("click", () => submitVendorDueDiligenceDecision("reject"));
+    rejectVendorDueDiligenceBtn.addEventListener("click", () => openVendorDueDiligenceReasonModal("reject"));
   }
 
   if (approveVendorDueDiligenceBtn) {

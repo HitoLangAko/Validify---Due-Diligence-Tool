@@ -299,8 +299,8 @@
           </div>
 
           <div class="field-group vendor-dd-decision-note">
-            <label>Employee Review Note</label>
-            <textarea id="vendorDueDiligenceDecisionNote" placeholder="Optional note for returning, rejecting, or approving the vendor submission."></textarea>
+            <label>Employee Review Note <span class="optional-label">(Optional / Internal)</span></label>
+            <textarea id="vendorDueDiligenceDecisionNote" placeholder="Optional internal note for approval or tracking. Return and rejection reasons are entered in a separate reason panel."></textarea>
           </div>
 
           <div class="vendor-dd-actions">
@@ -962,24 +962,5 @@
   <div class="toast" id="toast"></div>
 
   <script src="js/employee.js"></script>
-
-/*rejectAssessment*/
-<div id="rejectInputModal" class="rejection-modal-overlay" style="display: none;">
-    <div class="rejection-modal-card">
-        <h3>Basis for Rejection</h3>
-        <p>Please provide the specific reason for rejecting this assessment. This feedback will be recorded in the database and visible to the vendor.</p>
-        
-        <div class="rejection-input-group">
-            <label>Rejection Reason <span class="required-asterisk">*</span></label>
-            <textarea id="rejectionReasonInput" placeholder="State the missing artifacts or failed compliance frameworks here..."></textarea>
-        </div>
-        
-        <div class="rejection-modal-actions">
-            <button onclick="closeRejectModal()" class="cancel-modal-btn">Cancel</button>
-            <button onclick="submitRejection()" class="confirm-reject-btn">Confirm Rejection</button>
-        </div>
-    </div>
-</div>
-
 </body>
 </html>
