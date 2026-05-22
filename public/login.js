@@ -20,6 +20,21 @@ function getRedirectPage(role) {
   return "login.html";
 }
 
+function getRoleLabel(role) {
+  const labels = {
+    vendor: "Vendor",
+    employee: "Employee / Compliance Officer",
+    it: "IT",
+    infosec: "InfoSec",
+    management: "Management",
+    dpo: "DPO",
+    hr: "HR",
+    compliance: "Compliance"
+  };
+
+  return labels[role] || role || "Account";
+}
+
 function showMessage(message, type = "error") {
   if (!messageBox) return;
   messageBox.textContent = message;
@@ -42,23 +57,40 @@ function showApprovalPanel(account = {}, status = "Pending", message = "") {
   clearMessage();
   setAuthFormsVisible(false);
 
+  const cleanStatus = status === "Rejected" ? "Rejected" : "Pending";
+  const accountEmail = String(account.email || "").trim();
+  const accountName = String(account.full_name || "").trim();
+  const accountRole = String(account.role || "").trim();
+
   if (approvalPanel) approvalPanel.classList.remove("hidden");
-  if (authTitle) authTitle.textContent = status === "Rejected" ? "Registration Rejected" : "Pending Approval";
+  if (authTitle) authTitle.textContent = cleanStatus === "Rejected" ? "Registration Rejected" : "Pending Approval";
 
   if (approvalIcon) {
-    approvalIcon.classList.toggle("rejected", status === "Rejected");
-    approvalIcon.innerHTML = status === "Rejected"
+    approvalIcon.classList.toggle("rejected", cleanStatus === "Rejected");
+    approvalIcon.innerHTML = cleanStatus === "Rejected"
       ? '<i class="fa-solid fa-ban"></i>'
       : '<i class="fa-solid fa-clock"></i>';
   }
 
-  if (approvalTitle) approvalTitle.textContent = status === "Rejected" ? "Registration Rejected" : "Pending Approval";
+  if (approvalTitle) {
+    approvalTitle.textContent = cleanStatus === "Rejected" ? "Registration Rejected" : "Pending Approval";
+  }
+
   if (approvalMessage) {
-    approvalMessage.textContent = message || (status === "Rejected"
+    approvalMessage.textContent = message || (cleanStatus === "Rejected"
       ? "Your account registration was rejected by InfoSec."
       : "Your account is pending approval by InfoSec.");
   }
-  if (approvalEmail) approvalEmail.textContent = `${account.email || "-"} ${account.role ? `(${account.role})` : ""}`;
+
+  if (approvalEmail) {
+    const displayText = [
+      accountName || null,
+      accountEmail || null,
+      accountRole ? getRoleLabel(accountRole) : null
+    ].filter(Boolean).join(" • ");
+
+    approvalEmail.textContent = displayText || "No account selected";
+  }
 }
 
 function hideApprovalPanel() {
@@ -97,10 +129,10 @@ async function api(url, options = {}) {
 
 async function redirectIfAlreadyLoggedIn() {
   try {
-    const user = await api("/me");
+    const data = await api("/auth-status");
 
-    if (user?.role) {
-      window.location.replace(getRedirectPage(user.role));
+    if (data?.logged_in && data?.user?.role) {
+      window.location.replace(getRedirectPage(data.user.role));
     }
   } catch (_error) {
     // User is not logged in. Stay on login page.
@@ -143,9 +175,14 @@ if (loginForm) {
     event.preventDefault();
     clearMessage();
 
+    if (!loginForm.checkValidity()) {
+      loginForm.reportValidity();
+      return;
+    }
+
     const payload = {
-      email: document.getElementById("loginEmail").value.trim(),
-      password: document.getElementById("loginPassword").value,
+      email: document.getElementById("loginEmail")?.value.trim() || "",
+      password: document.getElementById("loginPassword")?.value || "",
       account_id: document.getElementById("infoSecAccountId")?.value.trim() || ""
     };
 
@@ -180,14 +217,37 @@ if (registerForm) {
     event.preventDefault();
     clearMessage();
 
+    if (!registerForm.checkValidity()) {
+      registerForm.reportValidity();
+      return;
+    }
+
+    const fullName = document.getElementById("registerName")?.value.trim() || "";
+    const email = document.getElementById("registerEmail")?.value.trim() || "";
+    const password = document.getElementById("registerPassword")?.value || "";
+    const role = document.getElementById("registerRole")?.value || "";
+
+    if (!fullName || !email || !password || !role) {
+      showMessage("Please fill in full name, email, password, and account type.");
+      return;
+    }
+
     const payload = {
-      full_name: document.getElementById("registerName").value.trim(),
-      email: document.getElementById("registerEmail").value.trim(),
-      password: document.getElementById("registerPassword").value,
-      role: document.getElementById("registerRole").value
+      full_name: fullName,
+      email,
+      password,
+      role
     };
 
+    const submitBtn = registerForm.querySelector('button[type="submit"]');
+    const originalBtnText = submitBtn?.textContent || "Create Account";
+
     try {
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Creating...";
+      }
+
       const data = await api("/register", {
         method: "POST",
         body: JSON.stringify(payload)
@@ -204,6 +264,11 @@ if (registerForm) {
       showMessage(data.message || "Account created successfully. You can now log in.", "success");
     } catch (error) {
       showMessage(error.message || "Failed to register account.");
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalBtnText;
+      }
     }
   });
 }

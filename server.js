@@ -728,22 +728,24 @@ async function createNotification(recipientUserIds, type, title, message) {
 /* AUTH ROUTES */
 
 app.post("/register", async (req, res) => {
-  const { full_name, email, password, role } = req.body;
+  const cleanFullName = String(req.body.full_name || "").trim();
+  const cleanEmail = String(req.body.email || "").trim().toLowerCase();
+  const password = String(req.body.password || "");
+  const cleanRole = String(req.body.role || "").trim().toLowerCase();
 
-  if (!full_name || !email || !password || !role) {
-    return res.status(400).json({ message: "Please fill in all fields." });
+  if (!cleanFullName || !cleanEmail || !password || !cleanRole) {
+    return res.status(400).json({ message: "Please fill in full name, email, password, and account type." });
   }
 
-  if (!allowedRoles.includes(role)) {
+  if (!allowedRoles.includes(cleanRole)) {
     return res.status(400).json({ message: "Invalid role selected." });
   }
 
   try {
-    const cleanEmail = String(email).trim().toLowerCase();
     const passwordHash = await bcrypt.hash(password, 10);
     let accountApprovalStatus = "Pending";
 
-    if (role === "infosec") {
+    if (cleanRole === "infosec") {
       const existingApprovedInfoSec = await runQuery(
         `
           SELECT COUNT(*) AS total
@@ -776,7 +778,7 @@ app.post("/register", async (req, res) => {
         )
         VALUES (?, ?, ?, ?, 1, NULL, NULL, ?, NULL, NULL, NULL)
       `,
-      [full_name, cleanEmail, passwordHash, role, accountApprovalStatus]
+      [cleanFullName, cleanEmail, passwordHash, cleanRole, accountApprovalStatus]
     );
 
     if (accountApprovalStatus === "Pending") {
@@ -785,7 +787,7 @@ app.post("/register", async (req, res) => {
         infosecIds,
         "new_account_registration",
         "New Account Registration",
-        `${full_name} (${cleanEmail}) registered as ${role} and is pending approval.`
+        `${cleanFullName} (${cleanEmail}) registered as ${cleanRole} and is pending approval.`
       );
     }
 
@@ -795,9 +797,9 @@ app.post("/register", async (req, res) => {
         : "Account created. Your registration is pending InfoSec approval.",
       pending_approval: accountApprovalStatus === "Pending",
       account: {
-        full_name,
+        full_name: cleanFullName,
         email: cleanEmail,
-        role,
+        role: cleanRole,
         account_approval_status: accountApprovalStatus
       }
     });
@@ -881,6 +883,14 @@ app.post("/login", async (req, res) => {
     console.error("Login error:", error);
     res.status(500).json({ message: "Login failed." });
   }
+});
+
+app.get("/auth-status", (req, res) => {
+  if (!req.session.user) {
+    return res.json({ logged_in: false, user: null });
+  }
+
+  res.json({ logged_in: true, user: req.session.user });
 });
 
 app.get("/me", async (req, res) => {
