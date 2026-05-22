@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Validify Login</title>
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet" />
-  <link href="css/login.css" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <link rel="stylesheet" href="css/login.css" />
 </head>
 <body>
   <main class="auth-card">
@@ -24,12 +24,12 @@
     <form class="form-panel active" id="loginForm">
       <div class="field">
         <i class="fa-solid fa-envelope"></i>
-        <input id="loginEmail" placeholder="Email" required type="email" />
+        <input id="loginEmail" type="email" placeholder="Email" required />
       </div>
 
       <div class="field">
         <i class="fa-solid fa-lock"></i>
-        <input id="loginPassword" placeholder="Password" required type="password" />
+        <input id="loginPassword" type="password" placeholder="Password" required />
       </div>
 
       <button class="submit-btn" type="submit">Login</button>
@@ -38,17 +38,17 @@
     <form class="form-panel" id="registerForm">
       <div class="field">
         <i class="fa-solid fa-user"></i>
-        <input id="registerName" placeholder="Full Name" required type="text" />
+        <input id="registerName" type="text" placeholder="Full Name" required />
       </div>
 
       <div class="field">
         <i class="fa-solid fa-envelope"></i>
-        <input id="registerEmail" placeholder="Email" required type="email" />
+        <input id="registerEmail" type="email" placeholder="Email" required />
       </div>
 
       <div class="field">
         <i class="fa-solid fa-lock"></i>
-        <input id="registerPassword" placeholder="Password" required type="password" />
+        <input id="registerPassword" type="password" placeholder="Password" required />
       </div>
 
       <div class="field">
@@ -68,7 +68,7 @@
 
       <div class="field hidden" id="vendorAccessCodeField">
         <i class="fa-solid fa-key"></i>
-        <input id="vendorAccessCode" placeholder="Vendor Access Code from InfoSec" type="text" />
+        <input id="vendorAccessCode" type="text" placeholder="Vendor Access Code from InfoSec" />
       </div>
 
       <p class="vendor-access-hint hidden" id="vendorAccessHint">
@@ -77,40 +77,6 @@
 
       <button class="submit-btn" type="submit">Create Account</button>
     </form>
-
-    <section class="form-panel otp-panel" id="otpPanel">
-      <div class="otp-icon">
-        <i class="fa-solid fa-shield-halved"></i>
-      </div>
-
-      <h2>OTP Verification</h2>
-      <p class="otp-subtitle">
-        Enter the 4-digit verification code for <strong id="otpEmailLabel">your account</strong>.
-      </p>
-      <p class="otp-expiry">The OTP will expire in <span id="otpExpire">300</span>s</p>
-
-      <div class="otp-demo-box hidden" id="otpDemoBox">
-        Demo OTP: <strong id="otpDemoCode">0000</strong>
-      </div>
-
-      <form id="otpForm">
-        <div class="otp-row">
-          <input class="otp-input" type="text" inputmode="numeric" maxlength="1" autocomplete="one-time-code" />
-          <input class="otp-input" type="text" inputmode="numeric" maxlength="1" disabled />
-          <input class="otp-input" type="text" inputmode="numeric" maxlength="1" disabled />
-          <input class="otp-input" type="text" inputmode="numeric" maxlength="1" disabled />
-        </div>
-
-        <button class="submit-btn otp-submit" id="verifyOtpBtn" type="submit" disabled>Verify OTP</button>
-      </form>
-
-      <p class="otp-request-text">
-        Didn't receive code?
-        <button type="button" id="requestOtpBtn">Request Again</button>
-      </p>
-
-      <button type="button" class="secondary-auth-btn" id="backToLoginBtn">Back to Login</button>
-    </section>
   </main>
 
   <script src="login.js"></script>

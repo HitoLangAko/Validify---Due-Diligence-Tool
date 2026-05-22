@@ -1,328 +1,164 @@
+.hidden { display: none !important; }
+/* LOGIN CSS - moved out from login.html */
 * {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-  font-family: "Inter", "Segoe UI", Arial, sans-serif;
-}
+      box-sizing: border-box;
+    }
 
-body {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #eef3f9;
-  color: #07152f;
-}
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Arial, sans-serif;
+      background: #eef2f7;
+      color: #111827;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 28px;
+    }
 
-.auth-card {
-  width: min(920px, calc(100vw - 40px));
-  background: #ffffff;
-  border-radius: 28px;
-  padding: 54px 58px 58px;
-  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.12);
-}
+    .auth-card {
+      width: min(780px, 100%);
+      background: #ffffff;
+      border-radius: 28px;
+      padding: 52px 70px;
+      box-shadow: 0 24px 70px rgba(15, 23, 42, 0.12);
+    }
 
-.auth-header {
-  text-align: center;
-  margin-bottom: 30px;
-}
+    .auth-header {
+      text-align: center;
+      margin-bottom: 28px;
+    }
 
-.auth-header h1 {
-  font-size: clamp(42px, 5vw, 58px);
-  line-height: 1;
-  font-weight: 900;
-  letter-spacing: -1.5px;
-  margin-bottom: 18px;
-  color: #07152f;
-}
+    .auth-header h1 {
+      margin: 0;
+      font-size: 48px;
+      font-weight: 900;
+      color: #111827;
+    }
 
-.auth-header p {
-  font-size: 18px;
-  font-style: italic;
-  color: #596b8e;
-}
+    .auth-header p {
+      margin: 14px 0 0;
+      color: #5d6f8b;
+      font-size: 17px;
+      font-style: italic;
+    }
 
-.tab-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-  margin-bottom: 24px;
-}
+    .tab-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 22px;
+    }
 
-.tab-btn {
-  height: 58px;
-  border: none;
-  border-radius: 13px;
-  background: #e9eff8;
-  color: #06132e;
-  font-size: 16px;
-  font-weight: 800;
-  cursor: pointer;
-  transition: 0.2s ease;
-}
+    .tab-btn {
+      height: 48px;
+      border: none;
+      border-radius: 12px;
+      background: #edf2fb;
+      color: #1f2937;
+      font-weight: 900;
+      cursor: pointer;
+    }
 
-.tab-btn.active,
-.tab-btn:hover {
-  background: #3264e9;
-  color: #ffffff;
-}
+    .tab-btn.active {
+      background: #2f66e8;
+      color: #ffffff;
+    }
 
-.message {
-  display: none;
-  width: 100%;
-  border-radius: 12px;
-  padding: 16px 18px;
-  margin-bottom: 22px;
-  text-align: center;
-  font-weight: 800;
-  font-size: 17px;
-}
+    .message {
+      display: none;
+      padding: 14px;
+      border-radius: 10px;
+      margin-bottom: 18px;
+      font-weight: 800;
+      text-align: center;
+    }
 
-.message.show {
-  display: block;
-}
+    .message.show {
+      display: block;
+    }
 
-.message.error {
-  background: #fee2e2;
-  color: #991b1b;
-  border: 1px solid #fecaca;
-}
+    .message.error {
+      background: #fee2e2;
+      color: #b91c1c;
+      border: 1px solid #fecaca;
+    }
 
-.message.success {
-  background: #dcfce7;
-  color: #166534;
-  border: 1px solid #bbf7d0;
-}
+    .message.success {
+      background: #dcfce7;
+      color: #166534;
+      border: 1px solid #bbf7d0;
+    }
 
-.form-panel {
-  display: none;
-}
+    .form-panel {
+      display: none;
+    }
 
-.form-panel.active {
-  display: block;
-}
+    .form-panel.active {
+      display: block;
+    }
 
-.field {
-  height: 64px;
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  background: #eaf1fb;
-  border: 1px solid #cad8ee;
-  border-radius: 12px;
-  padding: 0 22px;
-  margin-bottom: 18px;
-}
+    .field {
+      position: relative;
+      margin-bottom: 22px;
+    }
 
-.field i {
-  width: 24px;
-  text-align: center;
-  color: #657895;
-  font-size: 20px;
-}
+    .field i {
+      position: absolute;
+      left: 22px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #64748b;
+      font-size: 20px;
+    }
 
-input,
-select {
-  width: 100%;
-  border: none;
-  outline: none;
-  background: transparent;
-  color: #06132e;
-  font-size: 16px;
-  font-weight: 650;
-}
+    input, select {
+      width: 100%;
+      height: 64px;
+      border: 1px solid #d6deea;
+      border-radius: 10px;
+      background: #fbfcfe;
+      padding: 0 18px 0 70px;
+      outline: none;
+      font-size: 16px;
+    }
 
-input::placeholder {
-  color: #5d6d85;
-}
+    select {
+      appearance: auto;
+    }
 
-select {
-  cursor: pointer;
-}
+    input:focus, select:focus {
+      border-color: #2f66e8;
+      box-shadow: 0 0 0 2px rgba(47, 102, 232, 0.12);
+    }
 
-.submit-btn {
-  width: 100%;
-  height: 66px;
-  border: none;
-  border-radius: 12px;
-  background: #3264e9;
-  color: #ffffff;
-  font-size: 20px;
-  font-weight: 900;
-  cursor: pointer;
-  transition: 0.2s ease;
-  box-shadow: 0 16px 32px rgba(50, 100, 233, 0.22);
-}
+    .submit-btn {
+      width: 100%;
+      height: 58px;
+      border: none;
+      border-radius: 10px;
+      background: #2f66e8;
+      color: #ffffff;
+      font-size: 18px;
+      font-weight: 900;
+      cursor: pointer;
+      margin-top: 8px;
+    }
 
-.submit-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  background: #2556d8;
-}
+    @media (max-width: 720px) {
+      .auth-card {
+        padding: 34px 24px;
+      }
 
-.submit-btn:disabled {
-  cursor: not-allowed;
-  background: #9bb4f1;
-  box-shadow: none;
-}
-
-.hidden {
-  display: none !important;
-}
+      .auth-header h1 {
+        font-size: 36px;
+      }
+    }
 
 .vendor-access-hint {
-  margin: -6px 0 16px;
-  color: #64748b;
-  font-size: 14px;
-  font-weight: 650;
-}
-
-.otp-panel {
+  margin: -10px 0 18px;
+  color: #5d6f8b;
+  font-size: 13px;
+  font-weight: 700;
   text-align: center;
-}
-
-.otp-icon {
-  width: 84px;
-  height: 84px;
-  margin: 12px auto 22px;
-  display: grid;
-  place-items: center;
-  border-radius: 22px;
-  background: #e5ecff;
-  color: #3264e9;
-  font-size: 36px;
-}
-
-.otp-panel h2 {
-  font-size: 34px;
-  font-weight: 900;
-  color: #07152f;
-  margin-bottom: 14px;
-}
-
-.otp-subtitle,
-.otp-expiry {
-  color: #587097;
-  font-size: 16px;
-  font-weight: 750;
-  margin-bottom: 12px;
-}
-
-.otp-subtitle strong {
-  color: #3264e9;
-}
-
-.otp-demo-box {
-  width: fit-content;
-  max-width: 100%;
-  margin: 18px auto 20px;
-  padding: 12px 18px;
-  border-radius: 12px;
-  background: #fff7ed;
-  border: 1px solid #fed7aa;
-  color: #9a3412;
-  font-size: 17px;
-  font-weight: 900;
-}
-
-.otp-demo-box strong {
-  letter-spacing: 4px;
-  color: #ea580c;
-}
-
-.otp-row {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-  margin: 26px 0;
-}
-
-.otp-input {
-  height: 82px;
-  text-align: center;
-  border: 1px solid #cad8ee;
-  border-radius: 14px;
-  background: #f8fafc;
-  font-size: 34px;
-  font-weight: 900;
-  color: #07152f;
-}
-
-.otp-input:focus {
-  border-color: #3264e9;
-  box-shadow: 0 0 0 4px rgba(50, 100, 233, 0.14);
-}
-
-.otp-input:disabled {
-  background: #eef3fa;
-  color: #94a3b8;
-}
-
-.otp-submit {
-  margin-bottom: 14px;
-}
-
-.otp-request-text {
-  font-size: 16px;
-  color: #587097;
-  font-weight: 800;
-  margin: 10px 0 28px;
-}
-
-.otp-request-text button {
-  border: none;
-  background: transparent;
-  color: #3264e9;
-  font-size: 16px;
-  font-weight: 900;
-  cursor: pointer;
-}
-
-.otp-request-text button:hover {
-  text-decoration: underline;
-}
-
-.secondary-auth-btn {
-  width: 100%;
-  height: 58px;
-  border: 1px solid #cad8ee;
-  border-radius: 12px;
-  background: #ffffff;
-  color: #07152f;
-  font-size: 17px;
-  font-weight: 900;
-  cursor: pointer;
-  transition: 0.2s ease;
-}
-
-.secondary-auth-btn:hover {
-  background: #edf3fb;
-}
-
-@media (max-width: 720px) {
-  .auth-card {
-    width: calc(100vw - 24px);
-    padding: 34px 22px;
-    border-radius: 22px;
-  }
-
-  .auth-header h1 {
-    font-size: 38px;
-  }
-
-  .auth-header p {
-    font-size: 15px;
-  }
-
-  .tab-row {
-    gap: 10px;
-  }
-
-  .otp-row {
-    gap: 10px;
-  }
-
-  .otp-input {
-    height: 68px;
-    font-size: 28px;
-  }
 }
