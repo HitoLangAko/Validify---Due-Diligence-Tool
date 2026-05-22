@@ -8,8 +8,7 @@ const fs = require("fs");
 const crypto = require("crypto");
 const multer = require("multer");
 const ExcelJS = require("exceljs");
-const nodemailer = require("nodemailer");
-
+const { Resend } = require("resend");
 require("dotenv").config();
 
 const app = express();
@@ -383,7 +382,7 @@ async function initDatabase() {
       email VARCHAR(150) NOT NULL UNIQUE,
       password_hash VARCHAR(255) NOT NULL,
       role ENUM('vendor', 'employee', 'it', 'infosec', 'management', 'dpo', 'hr', 'compliance') NOT NULL,
-      email_verified TINYINT(1) DEFAULT 1,
+      email_verified TINYINT(1) DEFAULT 0,
       verification_token_hash VARCHAR(255) NULL,
       verification_token_expires DATETIME NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -391,7 +390,7 @@ async function initDatabase() {
   `);
 
   
-  await addColumnIfMissing("users", "email_verified", "TINYINT(1) DEFAULT 1");
+  await addColumnIfMissing("users", "email_verified", "TINYINT(1) DEFAULT 0");
   await addColumnIfMissing("users", "verification_token_hash", "VARCHAR(255) NULL");
   await addColumnIfMissing("users", "verification_token_expires", "DATETIME NULL");
 
@@ -717,6 +716,23 @@ async function updateMainAssessmentStatus(assessmentId) {
 }
 
 
+app.get("/question-bank", requireAnyRole(["vendor", "employee", ...departmentRoles]), (_req, res) => {
+  res.json({
+    due_diligence: [
+      { section_name: "Vendor Information", questions: vendorInformationQuestions },
+      { section_name: "Consumer", questions: consumerQuestions },
+      { section_name: "IT Risk Management", questions: departmentQuestionGroups.it[0].questions },
+      { section_name: "Compliance", questions: departmentQuestionGroups.compliance[0].questions },
+      { section_name: "Resiliency", questions: resiliencyQuestions },
+      { section_name: "Data Privacy", questions: departmentQuestionGroups.dpo[0].questions },
+      { section_name: "Environmental and Social Risk Management", questions: departmentQuestionGroups.hr[0].questions }
+    ],
+    information_security: [
+      { section_name: "Information Security", questions: departmentQuestionGroups.infosec[0].questions }
+    ]
+  });
+});
+
 /* INFOSEC VENDOR REGISTRATION ACCESS ROUTES */
 
 app.get("/infosec/vendor-access", requireRole("infosec"), async (_req, res) => {
@@ -842,6 +858,7 @@ app.patch("/infosec/vendor-access/:access_id/revoke", requireRole("infosec"), as
   }
 });
 
+
 function createVerificationToken() {
   const token = crypto.randomBytes(32).toString("hex");
   const tokenHash = crypto
@@ -863,31 +880,27 @@ function getAppBaseUrl() {
   return process.env.APP_BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
 }
 
-function createMailTransporter() {
-  return nodemailer.createTransport({
-    host: process.env.MAIL_HOST,
-    port: Number(process.env.MAIL_PORT || 587),
-    secure: Number(process.env.MAIL_PORT || 587) === 465,
-    auth: {
-      user: process.env.MAIL_USER,
-      pass: process.env.MAIL_PASS
-    }
-  });
+function getResendClient() {
+  if (!process.env.RESEND_API_KEY) {
+    throw new Error("RESEND_API_KEY is missing in .env");
+  }
+
+  return new Resend(process.env.RESEND_API_KEY);
 }
 
 async function sendVerificationEmail(email, token) {
   const verifyUrl = `${getAppBaseUrl()}/verify-email?token=${encodeURIComponent(token)}`;
+  const resend = getResendClient();
 
-  const transporter = createMailTransporter();
-
-  await transporter.sendMail({
-    from: process.env.MAIL_FROM || process.env.MAIL_USER,
+  const { error } = await resend.emails.send({
+    from: process.env.MAIL_FROM || "Validify <onboarding@resend.dev>",
     to: email,
     subject: "Verify your Validify account",
     html: `
-      <div style="font-family: Arial, sans-serif; max-width: 620px; margin: auto; color: #111827;">
-        <h2>Verify your Validify account</h2>
-        <p>Thank you for registering. Please click the button below to verify your email address.</p>
+      <div style="font-family: Arial, sans-serif; max-width: 620px; margin: auto; color: #111827; line-height: 1.55;">
+        <h2 style="margin-bottom: 10px;">Verify your Validify account</h2>
+        <p>Thank you for registering in Validify.</p>
+        <p>Please click the button below to verify your email address before logging in.</p>
 
         <p style="margin: 28px 0;">
           <a href="${verifyUrl}"
@@ -898,17 +911,26 @@ async function sendVerificationEmail(email, token) {
 
         <p>If the button does not work, copy and paste this link into your browser:</p>
         <p style="word-break: break-all; color:#2563eb;">${verifyUrl}</p>
-
-        <p>This link will expire in 24 hours.</p>
+        <p>This verification link will expire in 24 hours.</p>
       </div>
     `
   });
+
+  if (error) {
+    throw new Error(error.message || "Failed to send verification email.");
+  }
 }
 
 /* AUTH ROUTES */
 
 app.post("/register", async (req, res) => {
-  const { full_name, email, password, role, vendor_access_code } = req.body;
+  const { full_name, email, password, role } = req.body;
+  const vendorAccessCode = String(
+    req.body.vendor_access_code ||
+    req.body.vendorAccessCode ||
+    req.body.access_code ||
+    ""
+  ).trim().toUpperCase();
 
   if (!full_name || !email || !password || !role) {
     return res.status(400).json({ message: "Please fill in all fields." });
@@ -918,58 +940,157 @@ app.post("/register", async (req, res) => {
     return res.status(400).json({ message: "Invalid role selected." });
   }
 
+  if (role === "vendor" && !vendorAccessCode) {
+    return res.status(400).json({
+      message: "Vendor registration requires an access code from InfoSec."
+    });
+  }
+
   try {
     const cleanEmail = String(email).trim().toLowerCase();
+    let accessRecord = null;
 
-    /*
-      If your current system requires InfoSec access code for vendor registration,
-      keep your existing vendor access code validation here.
-      Do not remove it.
-    */
+    if (role === "vendor") {
+      const accessRows = await runQuery(
+        `
+          SELECT *
+          FROM vendor_registration_access
+          WHERE UPPER(access_code) = ?
+          LIMIT 1
+        `,
+        [vendorAccessCode]
+      );
 
-    const passwordHash = await bcrypt.hash(password, 10);
-    const { token, tokenHash } = createVerificationToken();
+      if (!accessRows.length) {
+        return res.status(403).json({
+          message: "Invalid vendor access code. Please request access from InfoSec."
+        });
+      }
 
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      accessRecord = accessRows[0];
 
-    await runQuery(
-      `
-        INSERT INTO users
-        (
-          full_name,
-          email,
-          password_hash,
-          role,
-          email_verified,
-          verification_token_hash,
-          verification_token_expires
-        )
-        VALUES (?, ?, ?, ?, 0, ?, ?)
-      `,
-      [
-        full_name,
-        cleanEmail,
-        passwordHash,
-        role,
-        tokenHash,
-        expiresAt
-      ]
+      if (String(accessRecord.status || "").toUpperCase() !== "ACTIVE") {
+        return res.status(403).json({
+          message: "This vendor access code is already used or no longer active."
+        });
+      }
+
+      if (accessRecord.expires_at && new Date(accessRecord.expires_at) < new Date()) {
+        await runQuery(
+          "UPDATE vendor_registration_access SET status = 'REVOKED' WHERE access_id = ?",
+          [accessRecord.access_id]
+        );
+
+        return res.status(403).json({
+          message: "This vendor access code has expired. Please request a new one from InfoSec."
+        });
+      }
+
+      if (
+        accessRecord.vendor_email &&
+        String(accessRecord.vendor_email).trim().toLowerCase() !== cleanEmail
+      ) {
+        return res.status(403).json({
+          message: "This vendor access code is assigned to a different email address."
+        });
+      }
+    }
+
+    const existingUser = await runQuery(
+      `SELECT user_id FROM users WHERE email = ? LIMIT 1`,
+      [cleanEmail]
     );
 
-    await sendVerificationEmail(cleanEmail, token);
-
-    res.json({
-      message: "Account registered successfully. Please check your email to verify your account."
-    });
-  } catch (error) {
-    if (error.code === "ER_DUP_ENTRY") {
+    if (existingUser.length) {
       return res.status(400).json({ message: "Email already exists." });
     }
 
-    console.error("Register error:", error);
-    res.status(500).json({
-      message: error.message || "Failed to register account."
+    const passwordHash = await bcrypt.hash(password, 10);
+    const { token, tokenHash } = createVerificationToken();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    const result = await runQuery(
+      `
+        INSERT INTO users
+        (full_name, email, password_hash, role, email_verified, verification_token_hash, verification_token_expires)
+        VALUES (?, ?, ?, ?, 0, ?, ?)
+      `,
+      [full_name, cleanEmail, passwordHash, role, tokenHash, expiresAt]
+    );
+
+    let createdVendorId = null;
+
+    if (role === "vendor" && accessRecord) {
+      await runQuery(
+        `
+          UPDATE vendor_registration_access
+          SET status = 'USED',
+              used_by_user_id = ?,
+              used_at = CURRENT_TIMESTAMP
+          WHERE access_id = ?
+        `,
+        [result.insertId, accessRecord.access_id]
+      );
+
+      if (accessRecord.company_name) {
+        const vendorInsert = await runQuery(
+          `
+            INSERT INTO vendors
+            (user_id, company_name, contact_person_name, contact_email, created_by_user_id, overall_status)
+            VALUES (?, ?, ?, ?, ?, 'Pending')
+          `,
+          [
+            result.insertId,
+            accessRecord.company_name,
+            full_name,
+            cleanEmail,
+            result.insertId
+          ]
+        );
+
+        createdVendorId = vendorInsert.insertId;
+      }
+    }
+
+    try {
+      await sendVerificationEmail(cleanEmail, token);
+    } catch (emailError) {
+      console.error("Verification email send error:", emailError);
+
+      if (createdVendorId) {
+        await runQuery(`DELETE FROM vendors WHERE vendor_id = ?`, [createdVendorId]);
+      }
+
+      await runQuery(`DELETE FROM users WHERE user_id = ?`, [result.insertId]);
+
+      if (role === "vendor" && accessRecord) {
+        await runQuery(
+          `
+            UPDATE vendor_registration_access
+            SET status = 'ACTIVE', used_by_user_id = NULL, used_at = NULL
+            WHERE access_id = ?
+          `,
+          [accessRecord.access_id]
+        );
+      }
+
+      return res.status(500).json({
+        message: emailError.message || "Failed to send verification email."
+      });
+    }
+
+    res.json({
+      message: role === "vendor"
+        ? "Vendor account registered successfully. Please check your email to verify your account before logging in."
+        : "Account registered successfully. Please check your email to verify your account before logging in."
     });
+  } catch (error) {
+    if (error.code === "ER_DUP_ENTRY") {
+      return res.status(400).json({ message: "Email already exists or access code already exists." });
+    }
+
+    console.error("Register error:", error);
+    res.status(500).json({ message: error.sqlMessage || error.message || "Failed to register account." });
   }
 });
 
@@ -978,7 +1099,9 @@ app.post("/login", async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    const results = await runQuery("SELECT * FROM users WHERE email = ?", [email]);
+    const cleanEmail = String(email || "").trim().toLowerCase();
+
+    const results = await runQuery("SELECT * FROM users WHERE email = ?", [cleanEmail]);
 
     if (results.length === 0) {
       return res.status(401).json({ message: "Invalid email or password." });
@@ -1007,7 +1130,7 @@ app.post("/login", async (req, res) => {
     res.json({ message: "Login successful.", user: req.session.user });
   } catch (error) {
     console.error("Login error:", error);
-    res.status(500).json({ message: "Login failed." });
+    res.status(500).json({ message: error.sqlMessage || error.message || "Login failed." });
   }
 });
 
@@ -1145,6 +1268,58 @@ app.post("/profile", upload.single("profile_photo"), async (req, res) => {
   }
 });
 
+app.post("/resend-verification", async (req, res) => {
+  const cleanEmail = String(req.body.email || "").trim().toLowerCase();
+
+  if (!cleanEmail) {
+    return res.status(400).json({ message: "Email is required." });
+  }
+
+  try {
+    const rows = await runQuery(
+      `
+        SELECT user_id, email, email_verified
+        FROM users
+        WHERE email = ?
+        LIMIT 1
+      `,
+      [cleanEmail]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ message: "Account not found." });
+    }
+
+    const user = rows[0];
+
+    if (Number(user.email_verified) === 1) {
+      return res.status(400).json({ message: "This account is already verified." });
+    }
+
+    const { token, tokenHash } = createVerificationToken();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    await runQuery(
+      `
+        UPDATE users
+        SET verification_token_hash = ?,
+            verification_token_expires = ?
+        WHERE user_id = ?
+      `,
+      [tokenHash, expiresAt, user.user_id]
+    );
+
+    await sendVerificationEmail(cleanEmail, token);
+
+    res.json({ message: "Verification email resent. Please check your inbox." });
+  } catch (error) {
+    console.error("Resend verification error:", error);
+    res.status(500).json({
+      message: error.sqlMessage || error.message || "Failed to resend verification email."
+    });
+  }
+});
+
 app.get("/verify-email", async (req, res) => {
   const { token } = req.query;
 
@@ -1182,10 +1357,9 @@ app.get("/verify-email", async (req, res) => {
     await runQuery(
       `
         UPDATE users
-        SET
-          email_verified = 1,
-          verification_token_hash = NULL,
-          verification_token_expires = NULL
+        SET email_verified = 1,
+            verification_token_hash = NULL,
+            verification_token_expires = NULL
         WHERE user_id = ?
       `,
       [user.user_id]
