@@ -5,6 +5,7 @@ const bcrypt = require("bcryptjs");
 const session = require("express-session");
 const path = require("path");
 const fs = require("fs");
+const crypto = require("crypto");
 const multer = require("multer");
 const ExcelJS = require("exceljs");
 require("dotenv").config();
@@ -234,8 +235,6 @@ app.use(express.static("public"));
 
 app.get("/favicon.ico", (_req, res) => res.status(204).end());
 
-app.get("/favicon.ico", (_req, res) => res.status(204).end());
-
 const uploadDir = path.join(__dirname, "public", "uploads");
 fs.mkdirSync(uploadDir, { recursive: true });
 
@@ -387,6 +386,10 @@ async function initDatabase() {
       email_verified TINYINT(1) DEFAULT 1,
       verification_token_hash VARCHAR(255) NULL,
       verification_token_expires DATETIME NULL,
+      otp_verified TINYINT(1) DEFAULT 1,
+      otp_code_hash VARCHAR(255) NULL,
+      otp_expires DATETIME NULL,
+      otp_attempts INT DEFAULT 0,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -395,6 +398,11 @@ async function initDatabase() {
   await addColumnIfMissing("users", "email_verified", "TINYINT(1) DEFAULT 1");
   await addColumnIfMissing("users", "verification_token_hash", "VARCHAR(255) NULL");
   await addColumnIfMissing("users", "verification_token_expires", "DATETIME NULL");
+
+  await addColumnIfMissing("users", "otp_verified", "TINYINT(1) DEFAULT 1");
+  await addColumnIfMissing("users", "otp_code_hash", "VARCHAR(255) NULL");
+  await addColumnIfMissing("users", "otp_expires", "DATETIME NULL");
+  await addColumnIfMissing("users", "otp_attempts", "INT DEFAULT 0");
 
   await addColumnIfMissing("users", "first_name", "VARCHAR(100) NULL");
   await addColumnIfMissing("users", "last_name", "VARCHAR(100) NULL");
@@ -727,10 +735,56 @@ async function getUserIdsByRole(roles) {
   }
 }
 
+
+function generateOtpCode() {
+  return String(Math.floor(1000 + Math.random() * 9000));
+}
+
+function hashOtpCode(otp) {
+  return crypto
+    .createHash("sha256")
+    .update(String(otp))
+    .digest("hex");
+}
+
+function getOtpExpiryDate() {
+  return new Date(Date.now() + 5 * 60 * 1000);
+}
+
+function secondsUntil(dateValue) {
+  const target = new Date(dateValue).getTime();
+  return Math.max(0, Math.floor((target - Date.now()) / 1000));
+}
+
+async function setOtpForUser(userId) {
+  const otp = generateOtpCode();
+  const otpHash = hashOtpCode(otp);
+  const otpExpires = getOtpExpiryDate();
+
+  await runQuery(
+    `
+      UPDATE users
+      SET
+        otp_verified = 0,
+        otp_code_hash = ?,
+        otp_expires = ?,
+        otp_attempts = 0
+      WHERE user_id = ?
+    `,
+    [otpHash, otpExpires, userId]
+  );
+
+  return {
+    otp,
+    expires_at: otpExpires,
+    expires_in: secondsUntil(otpExpires)
+  };
+}
+
 /* AUTH ROUTES */
 
 app.post("/register", async (req, res) => {
-  const { full_name, email, password, role } = req.body;
+  const { full_name, email, password, role, vendor_access_code } = req.body;
 
   if (!full_name || !email || !password || !role) {
     return res.status(400).json({ message: "Please fill in all fields." });
@@ -741,38 +795,186 @@ app.post("/register", async (req, res) => {
   }
 
   try {
-    const passwordHash = await bcrypt.hash(password, 10);
+    const cleanEmail = String(email).trim().toLowerCase();
 
-    await runQuery(
+    const passwordHash = await bcrypt.hash(password, 10);
+    const otp = generateOtpCode();
+    const otpHash = hashOtpCode(otp);
+    const otpExpires = getOtpExpiryDate();
+
+    const result = await runQuery(
       `
         INSERT INTO users
-        (full_name, email, password_hash, role, email_verified, verification_token_hash, verification_token_expires)
-        VALUES (?, ?, ?, ?, 1, NULL, NULL)
+        (
+          full_name,
+          email,
+          password_hash,
+          role,
+          email_verified,
+          verification_token_hash,
+          verification_token_expires,
+          otp_verified,
+          otp_code_hash,
+          otp_expires,
+          otp_attempts
+        )
+        VALUES (?, ?, ?, ?, 1, NULL, NULL, 0, ?, ?, 0)
       `,
-      [full_name, email, passwordHash, role]
+      [full_name, cleanEmail, passwordHash, role, otpHash, otpExpires]
     );
-  if (role === "vendor") {
-    const employeeIds = await getUserIdsByRole("employee");
-    await createNotification(
-      employeeIds,
-      "vendor_registered",
-      "New Vendor Registered",
-      `A new vendor account has been created by ${full_name} (${email}). Awaiting due diligence submission.`
-    );
-  }
-    res.json({ message: "Account registered successfully. You can now log in." });
+
+    res.json({
+      message: "Account created. Enter the 4-digit OTP to complete registration.",
+      email: cleanEmail,
+      otp_required: true,
+      expires_in: secondsUntil(otpExpires),
+      dev_otp: otp
+    });
   } catch (error) {
     if (error.code === "ER_DUP_ENTRY") {
       return res.status(400).json({ message: "Email already exists." });
     }
 
     console.error("Register error:", error);
-    res.status(500).json({ message: "Failed to register account." });
+    res.status(500).json({ message: error.sqlMessage || "Failed to register account." });
+  }
+});
+
+app.post("/verify-otp", async (req, res) => {
+  const email = String(req.body.email || "").trim().toLowerCase();
+  const otp = String(req.body.otp || "").replace(/\D/g, "");
+
+  if (!email || !otp) {
+    return res.status(400).json({ message: "Email and OTP are required." });
+  }
+
+  if (otp.length !== 4) {
+    return res.status(400).json({ message: "OTP must be 4 digits." });
+  }
+
+  try {
+    const rows = await runQuery(
+      `
+        SELECT
+          user_id,
+          full_name,
+          email,
+          role,
+          otp_verified,
+          otp_code_hash,
+          otp_expires,
+          otp_attempts
+        FROM users
+        WHERE email = ?
+        LIMIT 1
+      `,
+      [email]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ message: "Account not found." });
+    }
+
+    const user = rows[0];
+
+    if (Number(user.otp_verified) === 1) {
+      return res.json({ message: "Account is already verified. You can now log in." });
+    }
+
+    if (!user.otp_code_hash || !user.otp_expires) {
+      return res.status(400).json({ message: "No active OTP found. Please request a new OTP." });
+    }
+
+    if (new Date(user.otp_expires) < new Date()) {
+      return res.status(400).json({ message: "OTP expired. Please request again." });
+    }
+
+    if (Number(user.otp_attempts || 0) >= 5) {
+      return res.status(429).json({ message: "Too many OTP attempts. Please request a new OTP." });
+    }
+
+    if (hashOtpCode(otp) !== user.otp_code_hash) {
+      await runQuery(
+        "UPDATE users SET otp_attempts = COALESCE(otp_attempts, 0) + 1 WHERE user_id = ?",
+        [user.user_id]
+      );
+
+      return res.status(400).json({ message: "Invalid OTP." });
+    }
+
+    await runQuery(
+      `
+        UPDATE users
+        SET
+          otp_verified = 1,
+          otp_code_hash = NULL,
+          otp_expires = NULL,
+          otp_attempts = 0
+        WHERE user_id = ?
+      `,
+      [user.user_id]
+    );
+
+    if (user.role === "vendor") {
+      const employeeIds = await getUserIdsByRole("employee");
+      await createNotification(
+        employeeIds,
+        "vendor_registered",
+        "New Vendor Registered",
+        `A new verified vendor account has been created by ${user.full_name} (${user.email}). Awaiting due diligence submission.`
+      );
+    }
+
+    res.json({ message: "OTP verified successfully. You can now log in." });
+  } catch (error) {
+    console.error("Verify OTP error:", error);
+    res.status(500).json({ message: error.sqlMessage || "Failed to verify OTP." });
+  }
+});
+
+app.post("/request-otp", async (req, res) => {
+  const email = String(req.body.email || "").trim().toLowerCase();
+
+  if (!email) {
+    return res.status(400).json({ message: "Email is required." });
+  }
+
+  try {
+    const rows = await runQuery(
+      `
+        SELECT user_id, email, otp_verified
+        FROM users
+        WHERE email = ?
+        LIMIT 1
+      `,
+      [email]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ message: "Account not found." });
+    }
+
+    if (Number(rows[0].otp_verified) === 1) {
+      return res.status(400).json({ message: "This account is already verified. You can log in." });
+    }
+
+    const otpData = await setOtpForUser(rows[0].user_id);
+
+    res.json({
+      message: "A new OTP has been generated.",
+      email: rows[0].email,
+      expires_in: otpData.expires_in,
+      dev_otp: otpData.otp
+    });
+  } catch (error) {
+    console.error("Request OTP error:", error);
+    res.status(500).json({ message: error.sqlMessage || "Failed to generate OTP." });
   }
 });
 
 app.post("/login", async (req, res) => {
-  const { email, password } = req.body;
+  const email = String(req.body.email || "").trim().toLowerCase();
+  const { password } = req.body;
 
   try {
     const results = await runQuery("SELECT * FROM users WHERE email = ?", [email]);
@@ -786,6 +988,18 @@ app.post("/login", async (req, res) => {
 
     if (!passwordMatch) {
       return res.status(401).json({ message: "Invalid email or password." });
+    }
+
+    if (Number(user.otp_verified) !== 1) {
+      const otpData = await setOtpForUser(user.user_id);
+
+      return res.status(403).json({
+        message: "Please verify your OTP before logging in.",
+        otp_required: true,
+        email: user.email,
+        expires_in: otpData.expires_in,
+        dev_otp: otpData.otp
+      });
     }
 
     req.session.user = {
