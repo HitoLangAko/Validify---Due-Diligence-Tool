@@ -1057,11 +1057,12 @@ app.get("/me", async (req, res) => {
     res.status(500).json({ message: "Failed to load user profile." });
   }
 });
+
 app.get("/notifications", async (req, res) => {
   if (!req.session.user) {
     return res.status(401).json({ message: "Not logged in." });
   }
- 
+
   try {
     const notifications = await runQuery(
       `
@@ -1079,21 +1080,19 @@ app.get("/notifications", async (req, res) => {
       `,
       [req.session.user.user_id]
     );
- 
+
     res.json({ notifications });
   } catch (error) {
     console.error("Fetch notifications error:", error);
     res.status(500).json({ message: "Failed to load notifications." });
   }
 });
- 
-// POST /notifications/:id/read
-// Mark one notification as read
+
 app.post("/notifications/:id/read", async (req, res) => {
   if (!req.session.user) {
     return res.status(401).json({ message: "Not logged in." });
   }
- 
+
   try {
     await runQuery(
       `
@@ -1104,33 +1103,36 @@ app.post("/notifications/:id/read", async (req, res) => {
       `,
       [req.params.id, req.session.user.user_id]
     );
- 
+
     res.json({ message: "Notification marked as read." });
   } catch (error) {
     console.error("Mark notification read error:", error);
     res.status(500).json({ message: "Failed to mark notification as read." });
   }
 });
- 
-// POST /notifications/read-all
-// Mark ALL notifications as read for the logged-in user
+
 app.post("/notifications/read-all", async (req, res) => {
   if (!req.session.user) {
     return res.status(401).json({ message: "Not logged in." });
   }
- 
+
   try {
     await runQuery(
-      `UPDATE notifications SET is_read = 1 WHERE recipient_user_id = ?`,
+      `
+        UPDATE notifications
+        SET is_read = 1
+        WHERE recipient_user_id = ?
+      `,
       [req.session.user.user_id]
     );
- 
+
     res.json({ message: "All notifications marked as read." });
   } catch (error) {
     console.error("Mark all notifications read error:", error);
     res.status(500).json({ message: "Failed to mark all notifications as read." });
   }
 });
+
 app.post("/profile", upload.single("profile_photo"), async (req, res) => {
   if (!req.session.user) {
     return res.status(401).json({ message: "Not logged in." });
