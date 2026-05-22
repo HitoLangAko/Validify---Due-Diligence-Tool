@@ -1,82 +1,76 @@
 <!DOCTYPE html>
-
 <html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>Validify Login</title>
-<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet"/><link href="css/login.css" rel="stylesheet"/>
-  
-
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Validify Login</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <link rel="stylesheet" href="css/login.css" />
 </head>
 <body>
-<main class="auth-card">
-<div class="auth-header">
-<h1 id="authTitle">Login</h1>
-<p>Validify role-based vendor assessment portal</p>
-</div>
-<div class="tab-row">
-<button class="tab-btn active" data-auth-tab="login" type="button">Login</button>
-<button class="tab-btn" data-auth-tab="register" type="button">Register</button>
-</div>
-<div class="message" id="messageBox"></div>
-<form class="form-panel active" id="loginForm">
-<div class="field">
-<i class="fa-solid fa-envelope"></i>
-<input id="loginEmail" placeholder="Email" required="" type="email"/>
-</div>
-<div class="field">
-<i class="fa-solid fa-lock"></i>
-<input id="loginPassword" placeholder="Password" required="" type="password"/>
-</div>
-<div class="field account-id-field">
-<i class="fa-solid fa-id-card"></i>
-<input id="infoSecAccountId" placeholder="InfoSec Account ID" type="text" value="infosecaccessonly2026"/>
-</div>
-<p class="field-hint">Account ID is required only for InfoSec login.</p>
-<button class="submit-btn" type="submit">Login</button>
-</form>
-<form class="form-panel" id="registerForm">
-<div class="field">
-<i class="fa-solid fa-user"></i>
-<input id="registerName" placeholder="Full Name" required="" type="text"/>
-</div>
-<div class="field">
-<i class="fa-solid fa-envelope"></i>
-<input id="registerEmail" placeholder="Email" required="" type="email"/>
-</div>
-<div class="field">
-<i class="fa-solid fa-lock"></i>
-<input id="registerPassword" placeholder="Password" required="" type="password"/>
-</div>
-<div class="field">
-<i class="fa-solid fa-briefcase"></i>
-<select id="registerRole" required="">
-<option value="" disabled selected>Select account type</option>
-<option value="vendor">Vendor</option>
-<option value="employee">Employee / Compliance Officer</option>
-<option value="it">IT</option>
-<option value="infosec">InfoSec</option>
-<option value="management">Management</option>
-<option value="dpo">DPO</option>
-<option value="hr">HR</option>
-<option value="compliance">Compliance</option>
-</select>
-</div>
-<button class="submit-btn" type="submit">Create Account</button>
-</form>
-<section class="approval-panel hidden" id="approvalPanel">
-<div class="approval-icon" id="approvalIcon"><i class="fa-solid fa-clock"></i></div>
-<h2 id="approvalTitle">Pending Approval</h2>
-<p id="approvalMessage">Your account is pending approval by InfoSec.</p>
-<div class="approval-details">
-<span>Account</span>
-<strong id="approvalEmail">-</strong>
-</div>
-<button class="submit-btn approval-back-btn" type="button" id="backToLoginBtn">Back to Login</button>
-<p class="approval-footnote">InfoSec must approve your registration before you can access the system.</p>
-</section>
-</main>
-<script src="login.js"></script>
+  <main class="auth-card">
+    <div class="auth-header">
+      <h1 id="authTitle">Login</h1>
+      <p>Validify role-based vendor assessment portal</p>
+    </div>
+
+    <div class="tab-row">
+      <button class="tab-btn active" data-auth-tab="login" type="button">Login</button>
+      <button class="tab-btn" data-auth-tab="register" type="button">Register</button>
+    </div>
+
+    <div class="message" id="messageBox"></div>
+
+    <form class="form-panel active" id="loginForm">
+      <div class="field">
+        <i class="fa-solid fa-envelope"></i>
+        <input id="loginEmail" type="email" placeholder="Email" required />
+      </div>
+
+      <div class="field">
+        <i class="fa-solid fa-lock"></i>
+        <input id="loginPassword" type="password" placeholder="Password" required />
+      </div>
+
+      <button class="submit-btn" type="submit">Login</button>
+    </form>
+
+    <form class="form-panel" id="registerForm">
+      <div class="field">
+        <i class="fa-solid fa-user"></i>
+        <input id="registerName" type="text" placeholder="Full Name" required />
+      </div>
+
+      <div class="field">
+        <i class="fa-solid fa-envelope"></i>
+        <input id="registerEmail" type="email" placeholder="Email" required />
+      </div>
+
+      <div class="field">
+        <i class="fa-solid fa-lock"></i>
+        <input id="registerPassword" type="password" placeholder="Password" required />
+      </div>
+
+      <div class="field">
+        <i class="fa-solid fa-briefcase"></i>
+        <select id="registerRole" required>
+          <option value="">Select account type</option>
+          <option value="vendor">Vendor</option>
+          <option value="employee">Employee / Compliance Officer</option>
+          <option value="it">IT</option>
+          <option value="infosec">InfoSec</option>
+          <option value="management">Management</option>
+          <option value="dpo">DPO</option>
+          <option value="hr">HR</option>
+          <option value="compliance">Compliance</option>
+        </select>
+      </div>
+
+
+      <button class="submit-btn" type="submit">Create Account</button>
+    </form>
+  </main>
+
+  <script src="login.js"></script>
 </body>
 </html>

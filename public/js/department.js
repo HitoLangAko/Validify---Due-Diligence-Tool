@@ -1,79 +1,3 @@
-/* Strong dashboard back-button guard.
-   Keeps logged-in users on their current dashboard even after repeated Back clicks.
-   Logout and role redirects set window.__validifyAllowNavigation = true to bypass this guard. */
-let isLoggingOut = false;
-window.__validifyAllowNavigation = false;
-
-function validifyLockDashboardBackButton() {
-  const lockedUrl = window.location.href;
-
-  function shouldLock() {
-    return !isLoggingOut && !window.__validifyAllowNavigation;
-  }
-
-  function addLockState() {
-    if (!shouldLock()) return;
-
-    try {
-      window.history.pushState(
-        { validifyDashboardLock: true, timestamp: Date.now() },
-        "",
-        lockedUrl
-      );
-    } catch (_error) {}
-  }
-
-  try {
-    window.history.replaceState(
-      { validifyDashboardLock: true, timestamp: Date.now() },
-      "",
-      lockedUrl
-    );
-
-    // Add several lock states so fast repeated Back clicks cannot easily leave the dashboard.
-    for (let index = 0; index < 80; index += 1) {
-      addLockState();
-    }
-  } catch (_error) {}
-
-  window.addEventListener("popstate", () => {
-    if (!shouldLock()) return;
-
-    // Refill immediately and on the next frame to resist rapid Back clicking.
-    addLockState();
-    window.setTimeout(addLockState, 0);
-    window.requestAnimationFrame(addLockState);
-  });
-
-  window.addEventListener("pageshow", () => {
-    if (!shouldLock()) return;
-    window.setTimeout(addLockState, 0);
-  });
-
-  // Small safety refill. This keeps the page protected even after long idle time.
-  window.setInterval(() => {
-    if (!shouldLock()) return;
-    const state = window.history.state || {};
-
-    if (!state.validifyDashboardLock) {
-      addLockState();
-    }
-  }, 1000);
-}
-
-function validifyGoToLogin() {
-  isLoggingOut = true;
-  window.__validifyAllowNavigation = true;
-  window.location.replace("login.html");
-}
-
-function validifyGoToPage(page) {
-  window.__validifyAllowNavigation = true;
-  window.location.replace(page || "login.html");
-}
-
-validifyLockDashboardBackButton();
-
 // DEPARTMENT PAGE JS - separated from original script.js
 window.VALIDIFY_ALLOWED_ROLES = ["it", "infosec", "management", "dpo", "hr", "compliance"];
 
@@ -89,7 +13,7 @@ const VALIDIFY_ROLE_PAGES = {
 };
 
 function redirectToRoleHome(role) {
-  validifyGoToPage(VALIDIFY_ROLE_PAGES[role] || "login.html");
+  window.location.href = VALIDIFY_ROLE_PAGES[role] || "login.html";
 }
 
 let currentUser = null;
@@ -109,7 +33,6 @@ let selectedReviewAssessment = null;
 let reportingSignoffRows = [];
 let selectedReportingAssessment = null;
 let assessmentSummaryData = null;
-let accountApprovalRows = [];
 
 const roleLabels = {
   employee: "Employee / Compliance Officer",
@@ -127,7 +50,7 @@ const departmentRoles = ["it", "infosec", "management", "dpo", "hr", "compliance
 const defaultPageByRole = {
   employee: "add-vendor",
   it: "dashboard",
-  infosec: "account-approvals",
+  infosec: "dashboard",
   management: "dashboard",
   dpo: "dashboard",
   hr: "dashboard",
@@ -140,7 +63,6 @@ const customPageLabels = {
   "add-vendor": "Insert Vendor",
   "my-submissions": "My Submissions",
   "vendor-queue": "Vendor Queue",
-  "account-approvals": "Account Approvals",
   "vendor-assessment": "Vendor Assessment",
   "pending-approval": "Pending Approval",
   signoff: "Form for Sign-off",
@@ -243,10 +165,6 @@ const profileFirstName = document.getElementById("profileFirstName");
 const profileLastName = document.getElementById("profileLastName");
 const profileJobTitle = document.getElementById("profileJobTitle");
 const profileWorkEmail = document.getElementById("profileWorkEmail");
-const accountApprovalsBody = document.getElementById("accountApprovalsBody");
-const accountPendingCount = document.getElementById("accountPendingCount");
-const accountApprovedCount = document.getElementById("accountApprovedCount");
-const accountRejectedCount = document.getElementById("accountRejectedCount");
 
 function getRoleLabel(role = currentRole) {
   return roleLabels[role] || role || "User";
@@ -709,8 +627,7 @@ async function checkLoggedInUser() {
       return;
     }
   } catch (_error) {
-    window.__validifyAllowNavigation = true;
-    window.location.replace("login.html");
+    window.location.href = "login.html";
     return;
   }
   applyRoleLayout();
@@ -744,8 +661,6 @@ function applyRoleLayout() {
   if (roleHelper) {
     if (currentRole === "employee") {
       roleHelper.textContent = "Standard Employee Portal: add vendors and create the main vendor assessment request.";
-    } else if (currentRole === "infosec") {
-      roleHelper.textContent = "InfoSec Console: approve registered accounts and review assigned assessments.";
     } else if (isDepartmentRole()) {
       roleHelper.textContent = `${label} Console: answer your department form for shared vendor assessments.`;
     } else if (currentRole === "admin") {
@@ -808,9 +723,6 @@ async function refreshCurrentPage(_page = getCurrentPage()) {
     }
     if (isDepartmentRole()) {
       await loadDepartmentWorkflowData();
-      if (currentRole === "infosec") {
-        await loadAccountApprovals();
-      }
     }
     if (currentRole === "admin") {
       await loadAdminData();
@@ -983,84 +895,6 @@ function setupAddVendorForm() {
   });
 }
 
-
-
-async function loadAccountApprovals() {
-  if (currentRole !== "infosec") return;
-  if (!accountApprovalsBody) return;
-
-  const data = await api("/infosec/account-approvals");
-  accountApprovalRows = data.accounts || [];
-  renderAccountApprovals();
-}
-
-function renderAccountApprovals() {
-  if (!accountApprovalsBody) return;
-
-  const pending = accountApprovalRows.filter((item) => item.account_approval_status === "Pending").length;
-  const approved = accountApprovalRows.filter((item) => item.account_approval_status === "Approved").length;
-  const rejected = accountApprovalRows.filter((item) => item.account_approval_status === "Rejected").length;
-
-  if (accountPendingCount) accountPendingCount.textContent = pending;
-  if (accountApprovedCount) accountApprovedCount.textContent = approved;
-  if (accountRejectedCount) accountRejectedCount.textContent = rejected;
-
-  if (!accountApprovalRows.length) {
-    accountApprovalsBody.innerHTML = `<tr><td colspan="7" class="empty-cell">No account requests found.</td></tr>`;
-    return;
-  }
-
-  accountApprovalsBody.innerHTML = accountApprovalRows.map((item) => {
-    const status = item.account_approval_status || "Pending";
-    const isPending = status === "Pending";
-
-    return `
-      <tr>
-        <td><strong>ACCT-${String(item.user_id).padStart(3, "0")}</strong></td>
-        <td>${escapeHTML(item.full_name || "-")}</td>
-        <td>${escapeHTML(item.email || "-")}</td>
-        <td>${escapeHTML(getRoleLabel(item.role))}</td>
-        <td><span class="status-pill ${statusClass(status)}">${escapeHTML(status)}</span></td>
-        <td>${escapeHTML(formatDate(item.created_at))}</td>
-        <td>
-          ${isPending ? `
-            <div class="approval-action-row">
-              <button type="button" class="approve-account-btn" data-account-id="${item.user_id}" data-decision="approve">Approve</button>
-              <button type="button" class="reject-account-btn" data-account-id="${item.user_id}" data-decision="reject">Reject</button>
-            </div>
-          ` : `
-            <small>${escapeHTML(item.decided_by || "InfoSec")}${item.account_rejection_reason ? `<br>Reason: ${escapeHTML(item.account_rejection_reason)}` : ""}</small>
-          `}
-        </td>
-      </tr>
-    `;
-  }).join("");
-}
-
-async function handleAccountApprovalDecision(userId, decision) {
-  let reason = "";
-
-  if (decision === "reject") {
-    reason = prompt("Reason for rejecting this account registration:") || "";
-
-    if (!reason.trim()) {
-      showToast("Rejection reason is required.");
-      return;
-    }
-  }
-
-  try {
-    const data = await api(`/infosec/account-approvals/${userId}/decision`, {
-      method: "POST",
-      body: JSON.stringify({ decision, reason })
-    });
-
-    showToast(data.message || "Account decision saved.");
-    await loadAccountApprovals();
-  } catch (error) {
-    alert(error.message || "Failed to save account decision.");
-  }
-}
 
 async function loadDepartmentWorkflowData() {
   const [queue, assessments, pending, questions, vendors] = await Promise.all([
@@ -2294,15 +2128,6 @@ function setupEvents() {
     tabBtn.addEventListener("click", () => switchAssessmentReviewTab(tabBtn.dataset.tab, tabBtn));
   });
 
-  if (accountApprovalsBody) {
-    accountApprovalsBody.addEventListener("click", async (event) => {
-      const button = event.target.closest("[data-account-id][data-decision]");
-      if (!button) return;
-
-      await handleAccountApprovalDecision(button.dataset.accountId, button.dataset.decision);
-    });
-  }
-
   if (refreshBtn) {
   refreshBtn.addEventListener("click", async () => {
     if (currentRole === "admin") {
@@ -2331,18 +2156,9 @@ function setupEvents() {
 
   if (logoutBtn) {
     logoutBtn.addEventListener("click", async () => {
-      isLoggingOut = true;
-      window.__validifyAllowNavigation = true;
-
-      try {
-        await fetch("/logout", { method: "POST", credentials: "same-origin" });
-      } catch (error) {
-        console.error(error);
-      }
-
+      try { await fetch("/logout", { method: "POST", credentials: "same-origin" }); } catch (error) { console.error(error); }
       sessionStorage.clear();
-      localStorage.removeItem("currentUser");
-      validifyGoToLogin();
+      window.location.href = "login.html";
     });
   }
 

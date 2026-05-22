@@ -6,6 +6,7 @@
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Validify Department Reviewer</title>
 <link href="css/department.css" rel="stylesheet"/>
+<link rel="stylesheet" href="css/notifications.css">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet"/>
 </head>
 <body>
@@ -22,11 +23,6 @@
 <span>Dashboard</span>
 </button>
 
-
-<button class="nav-link" data-page="account-approvals" data-roles="infosec" type="button">
-<i class="fa-solid fa-user-check"></i>
-<span>Account Approvals</span>
-</button>
 <button class="nav-link" data-page="vendor-assessment" data-roles="employee,it,infosec,management,dpo,hr,compliance" id="vendorAssessmentNavBtn" type="button">
 <i class="fa-solid fa-clipboard-check"></i>
 <span>Vendor Assessment</span>
@@ -43,9 +39,6 @@
 <i class="fa-solid fa-file-signature"></i>
 <span>Sign off</span>
 </button>
-
-
-
 
 <button class="nav-link" data-page="my-submissions" data-roles="employee,it,infosec,management,dpo,hr,compliance" type="button">
 <i class="fa-solid fa-folder-open"></i>
@@ -98,6 +91,25 @@
 <p class="muted" id="roleHelper">Loading role...</p>
 </div>
 <div class="top-actions">
+<div class="notif-wrapper" id="notifWrapper">
+  <button class="icon-button notif-bell" id="notifBell" aria-label="Notifications" aria-expanded="false">
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18"
+        viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+      <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+    </svg>
+    <span class="notif-badge" id="notifBadge" style="display:none;">0</span>
+  </button>
+  <div class="notif-dropdown hidden" id="notifDropdown">
+    <div class="notif-header">
+      <span>Notifications</span>
+      <button class="notif-mark-all" id="notifMarkAll">Mark all as read</button>
+    </div>
+    <ul class="notif-list" id="notifList"></ul>
+    <div class="notif-empty hidden" id="notifEmpty">No new notifications.</div>
+  </div>
+</div>
 <button class="icon-button" id="darkModeBtn" type="button">
 <i class="fa-solid fa-moon"></i>
 </button>
@@ -181,47 +193,6 @@
 </div>
 </section>
 
-
-<section class="page" id="accountApprovalsPage">
-<div class="content-card account-approval-card">
-<div class="section-header">
-<h3>Account Registration Approvals</h3>
-<p class="muted">Review newly registered accounts. Approved users can log in. Rejected users remain blocked.</p>
-</div>
-<div class="approval-summary-grid">
-<div class="approval-summary-item">
-<span>Pending</span>
-<strong id="accountPendingCount">0</strong>
-</div>
-<div class="approval-summary-item">
-<span>Approved</span>
-<strong id="accountApprovedCount">0</strong>
-</div>
-<div class="approval-summary-item">
-<span>Rejected</span>
-<strong id="accountRejectedCount">0</strong>
-</div>
-</div>
-<div class="table-wrap">
-<table>
-<thead>
-<tr>
-<th>Account ID</th>
-<th>Name</th>
-<th>Email</th>
-<th>Role</th>
-<th>Status</th>
-<th>Registered</th>
-<th>Decision</th>
-</tr>
-</thead>
-<tbody id="accountApprovalsBody">
-<tr><td class="empty-cell" colspan="7">No account requests found.</td></tr>
-</tbody>
-</table>
-</div>
-</div>
-</section>
 <section class="page" id="mySubmissionsPage">
 <div class="content-card">
 <h3>My Submissions</h3>
@@ -494,5 +465,6 @@
 </div>
 <div class="toast" id="toast"></div>
 <script src="js/department.js"></script>
+<script src="js/notifications.js"></script>
 </body>
 </html>
