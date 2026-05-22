@@ -466,6 +466,9 @@ async function initDatabase() {
   `);
 
   await addColumnIfMissing("vendor_assessments", "vendor_status", "ENUM('Draft', 'Submitted', 'Returned', 'Approved', 'Rejected') DEFAULT 'Draft'");
+  await addColumnIfMissing("vendor_assessments", "employee_review_comment", "TEXT NULL");
+  await addColumnIfMissing("vendor_assessments", "employee_decision_by_user_id", "INT NULL");
+  await addColumnIfMissing("vendor_assessments", "employee_decision_at", "DATETIME NULL");
 
   await runQuery(`
     CREATE TABLE IF NOT EXISTS department_assessments (
@@ -2926,8 +2929,8 @@ async function getVendorOwnedAssessment(userId, assessmentId) {
         v.contact_email,
         v.contact_phone,
         employee_da.status AS employee_review_status,
-        employee_da.admin_comment AS employee_comment,
-        employee_da.approved_at AS employee_decision_at
+        COALESCE(va.employee_review_comment, employee_da.admin_comment) AS employee_comment,
+        COALESCE(va.employee_decision_at, employee_da.approved_at) AS employee_decision_at
       FROM vendor_assessments va
       JOIN vendors v ON va.vendor_id = v.vendor_id
       LEFT JOIN department_assessments employee_da
@@ -3026,8 +3029,8 @@ app.get("/vendor/dashboard", requireVendor, async (req, res) => {
           v.company_name,
           v.product_services_offered,
           employee_da.status AS employee_review_status,
-          employee_da.admin_comment AS employee_comment,
-          employee_da.approved_at AS employee_decision_at
+          COALESCE(va.employee_review_comment, employee_da.admin_comment) AS employee_comment,
+          COALESCE(va.employee_decision_at, employee_da.approved_at) AS employee_decision_at
         FROM vendor_assessments va
         JOIN vendors v ON va.vendor_id = v.vendor_id
         LEFT JOIN department_assessments employee_da
@@ -3188,8 +3191,8 @@ app.post("/vendor/assessments", requireVendor, async (req, res) => {
           v.company_name,
           v.product_services_offered,
           employee_da.status AS employee_review_status,
-          employee_da.admin_comment AS employee_comment,
-          employee_da.approved_at AS employee_decision_at
+          COALESCE(va.employee_review_comment, employee_da.admin_comment) AS employee_comment,
+          COALESCE(va.employee_decision_at, employee_da.approved_at) AS employee_decision_at
         FROM vendor_assessments va
         JOIN vendors v ON va.vendor_id = v.vendor_id
         LEFT JOIN department_assessments employee_da
@@ -3342,12 +3345,16 @@ app.post("/vendor/assessments/:assessment_id/save", requireVendor, upload.any(),
     await runQuery(
       `
         UPDATE vendor_assessments
-        SET overall_status = ?,
+        SET
+            overall_status = ?,
             vendor_status = ?,
+            employee_review_comment = CASE WHEN ? = 'Submitted' THEN NULL ELSE employee_review_comment END,
+            employee_decision_by_user_id = CASE WHEN ? = 'Submitted' THEN NULL ELSE employee_decision_by_user_id END,
+            employee_decision_at = CASE WHEN ? = 'Submitted' THEN NULL ELSE employee_decision_at END,
             updated_at = CURRENT_TIMESTAMP
         WHERE assessment_id = ?
       `,
-      [assessmentStatus, submitStatus, assessmentId]
+      [assessmentStatus, submitStatus, submitStatus, submitStatus, submitStatus, assessmentId]
     );
 
     if (submitStatus === "Submitted") {
@@ -3446,10 +3453,16 @@ app.post("/employee/vendor-due-diligence/:assessment_id/decision", requireRole("
       await runQuery(
         `
           UPDATE vendor_assessments
-          SET vendor_status = 'Returned', overall_status = 'Draft', updated_at = CURRENT_TIMESTAMP
+          SET
+            vendor_status = 'Returned',
+            overall_status = 'Draft',
+            employee_review_comment = ?,
+            employee_decision_by_user_id = ?,
+            employee_decision_at = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
           WHERE assessment_id = ?
         `,
-        [assessmentId]
+        [comment || "Returned to vendor for revision.", req.session.user.user_id, assessmentId]
       );
 
       await runQuery(
@@ -3470,10 +3483,16 @@ app.post("/employee/vendor-due-diligence/:assessment_id/decision", requireRole("
       await runQuery(
         `
           UPDATE vendor_assessments
-          SET vendor_status = 'Rejected', overall_status = 'Rejected', updated_at = CURRENT_TIMESTAMP
+          SET
+            vendor_status = 'Rejected',
+            overall_status = 'Rejected',
+            employee_review_comment = ?,
+            employee_decision_by_user_id = ?,
+            employee_decision_at = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
           WHERE assessment_id = ?
         `,
-        [assessmentId]
+        [comment || "Rejected by Employee / Compliance Officer.", req.session.user.user_id, assessmentId]
       );
 
       await runQuery(
@@ -3524,10 +3543,16 @@ app.post("/employee/vendor-due-diligence/:assessment_id/decision", requireRole("
     await runQuery(
       `
         UPDATE vendor_assessments
-        SET vendor_status = 'Approved', overall_status = 'In Review', updated_at = CURRENT_TIMESTAMP
+        SET
+          vendor_status = 'Approved',
+          overall_status = 'In Review',
+          employee_review_comment = ?,
+          employee_decision_by_user_id = ?,
+          employee_decision_at = CURRENT_TIMESTAMP,
+          updated_at = CURRENT_TIMESTAMP
         WHERE assessment_id = ?
       `,
-      [assessmentId]
+      [comment || "Approved for department review.", req.session.user.user_id, assessmentId]
     );
 
     await runQuery(`UPDATE vendors SET overall_status = 'In Review' WHERE vendor_id = ?`, [assessment.vendor_id]);

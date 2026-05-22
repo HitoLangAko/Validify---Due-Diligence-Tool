@@ -1025,3 +1025,126 @@ body.dark-mode .vendor-feedback-panel.rejected {
     width: 100%;
   }
 }
+
+
+/* Submission Details Modal */
+.submission-modal.hidden {
+  display: none !important;
+}
+
+.submission-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.submission-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.62);
+  backdrop-filter: blur(3px);
+}
+
+.submission-modal-card {
+  position: relative;
+  width: min(620px, 100%);
+  background: var(--card-bg, #ffffff);
+  color: var(--text, #0f172a);
+  border: 1px solid var(--border, #dbe4f0);
+  border-radius: 24px;
+  padding: 28px;
+  box-shadow: 0 30px 80px rgba(15, 23, 42, 0.28);
+}
+
+.submission-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 20px;
+}
+
+.submission-modal-head h3 {
+  margin: 6px 0 0;
+  font-size: 26px;
+  font-weight: 900;
+}
+
+.modal-close-btn {
+  width: 42px;
+  height: 42px;
+  border: none;
+  border-radius: 14px;
+  background: #eef2f7;
+  color: #0f172a;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.submission-modal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  border-top: 1px solid var(--border, #dbe4f0);
+  padding-top: 18px;
+}
+
+.submission-modal-grid strong {
+  display: block;
+  margin-top: 5px;
+  font-weight: 900;
+}
+
+.submission-modal-reason {
+  margin-top: 20px;
+  padding: 18px 20px;
+  border-radius: 18px;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1e3a8a;
+}
+
+.submission-modal-reason.rejected {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #7f1d1d;
+}
+
+.submission-modal-reason.returned {
+  border-color: #fdba74;
+  background: #fff7ed;
+  color: #7c2d12;
+}
+
+.submission-modal-reason p {
+  margin: 10px 0 0;
+  line-height: 1.55;
+  font-weight: 700;
+  white-space: pre-wrap;
+}
+
+.submission-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+@media (max-width: 680px) {
+  .submission-modal-card {
+    padding: 22px;
+  }
+
+  .submission-modal-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .submission-modal-actions {
+    flex-direction: column;
+  }
+}

@@ -163,7 +163,7 @@ function getAssessmentStatus(item) {
 }
 
 function getEmployeeFeedback(item) {
-  return item?.employee_comment || item?.review_comment || item?.admin_comment || item?.feedback || "";
+  return item?.employee_comment || item?.employee_review_comment || item?.review_comment || item?.admin_comment || item?.feedback || item?.decision_comment || item?.rejection_reason || "";
 }
 
 function isActionableForRevision(item) {
@@ -359,6 +359,104 @@ function renderDashboard() {
 }
 
 
+
+function ensureSubmissionDetailsModal() {
+  let modal = document.getElementById("submissionDetailsModal");
+  if (modal) return modal;
+
+  modal = document.createElement("div");
+  modal.id = "submissionDetailsModal";
+  modal.className = "submission-modal hidden";
+  modal.innerHTML = `
+    <div class="submission-modal-backdrop" data-close-submission-modal="true"></div>
+    <div class="submission-modal-card" role="dialog" aria-modal="true" aria-labelledby="submissionModalTitle">
+      <div class="submission-modal-head">
+        <div>
+          <span class="mini-label">Assessment Details</span>
+          <h3 id="submissionModalTitle">Submission Details</h3>
+        </div>
+        <button type="button" class="modal-close-btn" data-close-submission-modal="true">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="submission-modal-grid">
+        <div>
+          <span class="mini-label">Assessment ID</span>
+          <strong id="submissionModalCode">—</strong>
+        </div>
+        <div>
+          <span class="mini-label">Status</span>
+          <strong id="submissionModalStatus">—</strong>
+        </div>
+        <div>
+          <span class="mini-label">Vendor</span>
+          <strong id="submissionModalVendor">—</strong>
+        </div>
+        <div>
+          <span class="mini-label">Purpose</span>
+          <strong id="submissionModalPurpose">—</strong>
+        </div>
+      </div>
+
+      <div class="submission-modal-reason" id="submissionModalReasonBox">
+        <span class="mini-label" id="submissionModalReasonLabel">Employee Reason / Note</span>
+        <p id="submissionModalReason">No employee reason was recorded for this assessment.</p>
+      </div>
+
+      <div class="submission-modal-actions">
+        <button type="button" class="secondary-btn" data-close-submission-modal="true">Close</button>
+        <button type="button" class="primary-btn" id="submissionModalOpenAssessmentBtn">Open Assessment</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  modal.querySelectorAll("[data-close-submission-modal]").forEach((button) => {
+    button.addEventListener("click", () => modal.classList.add("hidden"));
+  });
+
+  return modal;
+}
+
+function openSubmissionDetailsModal(item) {
+  if (!item) return;
+
+  const modal = ensureSubmissionDetailsModal();
+  const rawStatus = getAssessmentStatus(item);
+  const feedback = getEmployeeFeedback(item);
+  const reasonBox = modal.querySelector("#submissionModalReasonBox");
+  const openBtn = modal.querySelector("#submissionModalOpenAssessmentBtn");
+
+  modal.querySelector("#submissionModalTitle").textContent = `${item.assessment_code || `VA-${item.assessment_id}`} Details`;
+  modal.querySelector("#submissionModalCode").textContent = item.assessment_code || `VA-${item.assessment_id}`;
+  modal.querySelector("#submissionModalStatus").textContent = displayStatus(rawStatus);
+  modal.querySelector("#submissionModalVendor").textContent = item.company_name || "Unknown Vendor";
+  modal.querySelector("#submissionModalPurpose").textContent = item.purpose || "N/A";
+
+  const label = rawStatus === "Rejected"
+    ? "Reason for Rejection"
+    : rawStatus === "Returned"
+      ? "Reason for Return / Revision"
+      : "Employee Reason / Note";
+
+  modal.querySelector("#submissionModalReasonLabel").textContent = label;
+  modal.querySelector("#submissionModalReason").textContent = feedback || "No employee reason was recorded for this assessment.";
+
+  reasonBox.classList.toggle("rejected", rawStatus === "Rejected");
+  reasonBox.classList.toggle("returned", rawStatus === "Returned");
+
+  if (openBtn) {
+    openBtn.onclick = () => {
+      modal.classList.add("hidden");
+      selectAssessment(item.assessment_id, "vendor_info");
+    };
+  }
+
+  modal.classList.remove("hidden");
+}
+
 function renderSubmissionPanel(item = null) {
   const title = document.getElementById("selectedSubmissionTitle");
   const status = document.getElementById("selectedSubmissionStatus");
@@ -457,6 +555,7 @@ function renderMySubmissions(selectedAssessmentId = null) {
       activeAssessmentId = String(button.dataset.viewSubmissionId);
       localStorage.setItem("active_assessment_id", activeAssessmentId);
       renderMySubmissions(activeAssessmentId);
+      openSubmissionDetailsModal(findAssessment(activeAssessmentId));
     });
   });
 
