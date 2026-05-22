@@ -1,3 +1,18 @@
+
+/* GLOBAL HIDE FIX
+   Required because the approval panel uses class="hidden" in login.html.
+   Without this, Pending Approval stays visible under the Login form. */
+.hidden,
+.form-panel.hidden,
+.tab-row.hidden,
+.approval-panel.hidden {
+  display: none !important;
+}
+
+.form-panel.active:not(.hidden) {
+  display: block;
+}
+
 /* LOGIN CSS - moved out from login.html */
 * {
       box-sizing: border-box;

@@ -9,6 +9,10 @@ const approvalMessage = document.getElementById("approvalMessage");
 const approvalEmail = document.getElementById("approvalEmail");
 const backToLoginBtn = document.getElementById("backToLoginBtn");
 
+// Keep the approval panel hidden on first page load.
+// It should only appear after successful registration or after a blocked Pending/Rejected login.
+approvalPanel?.classList.add("hidden");
+
 function getRedirectPage(role) {
   if (role === "vendor") return "vendor.html";
   if (role === "employee" || role === "admin") return "employee.html";
@@ -55,12 +59,19 @@ function setAuthFormsVisible(isVisible) {
 
 function showApprovalPanel(account = {}, status = "Pending", message = "") {
   clearMessage();
-  setAuthFormsVisible(false);
 
   const cleanStatus = status === "Rejected" ? "Rejected" : "Pending";
   const accountEmail = String(account.email || "").trim();
   const accountName = String(account.full_name || "").trim();
   const accountRole = String(account.role || "").trim();
+
+  // Do not show the panel for an empty or incomplete form state.
+  if (!accountEmail && !accountName) {
+    hideApprovalPanel();
+    return;
+  }
+
+  setAuthFormsVisible(false);
 
   if (approvalPanel) approvalPanel.classList.remove("hidden");
   if (authTitle) authTitle.textContent = cleanStatus === "Rejected" ? "Registration Rejected" : "Pending Approval";
