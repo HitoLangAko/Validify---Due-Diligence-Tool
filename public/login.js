@@ -3,9 +3,6 @@ const registerForm = document.getElementById("registerForm");
 const messageBox = document.getElementById("messageBox");
 const authTitle = document.getElementById("authTitle");
 const registerRole = document.getElementById("registerRole");
-const vendorAccessCodeField = document.getElementById("vendorAccessCodeField");
-const vendorAccessHint = document.getElementById("vendorAccessHint");
-const vendorAccessCode = document.getElementById("vendorAccessCode");
 
 function getRedirectPage(role) {
   if (role === "vendor") return "vendor.html";
@@ -77,25 +74,6 @@ window.addEventListener("pageshow", (event) => {
   }
 });
 
-function toggleVendorAccessCodeField() {
-  const isVendor = registerRole?.value === "vendor";
-
-  vendorAccessCodeField?.classList.toggle("hidden", !isVendor);
-  vendorAccessHint?.classList.toggle("hidden", !isVendor);
-
-  if (vendorAccessCode) {
-    vendorAccessCode.required = isVendor;
-
-    if (!isVendor) {
-      vendorAccessCode.value = "";
-    }
-  }
-}
-
-if (registerRole) {
-  registerRole.addEventListener("change", toggleVendorAccessCodeField);
-  toggleVendorAccessCodeField();
-}
 
 document.querySelectorAll("[data-auth-tab]").forEach((button) => {
   button.addEventListener("click", () => {
@@ -156,10 +134,7 @@ if (registerForm) {
       full_name: document.getElementById("registerName").value.trim(),
       email: document.getElementById("registerEmail").value.trim(),
       password: document.getElementById("registerPassword").value,
-      role: selectedRole,
-      vendor_access_code: selectedRole === "vendor"
-        ? document.getElementById("vendorAccessCode").value.trim()
-        : ""
+      role: selectedRole
     };
 
     try {
@@ -169,7 +144,6 @@ if (registerForm) {
       });
 
       registerForm.reset();
-      toggleVendorAccessCodeField();
       document.querySelector('[data-auth-tab="login"]')?.click();
 
       showMessage(data.message || "Account registered successfully. You can now log in.", "success");
