@@ -2554,7 +2554,11 @@ async function submitVendorDueDiligenceDecision(decision, forcedReason = null) {
       method: "POST",
       body: JSON.stringify({
         decision,
-        comment: decisionComment
+        comment: decisionComment,
+        reason: decisionComment,
+        employee_reason: decisionComment,
+        rejection_reason: decision === "reject" ? decisionComment : "",
+        return_reason: decision === "return" ? decisionComment : ""
       })
     });
 

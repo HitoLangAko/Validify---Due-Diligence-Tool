@@ -544,6 +544,19 @@ async function initDatabase() {
   await addColumnIfMissing("sign_offs", "created_by_user_id", "INT NULL");
   await addColumnIfMissing("sign_offs", "created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
 
+  await runQuery(`
+    CREATE TABLE IF NOT EXISTS assessment_feedback_logs (
+      feedback_id INT AUTO_INCREMENT PRIMARY KEY,
+      assessment_id INT NOT NULL,
+      decision ENUM('return', 'reject', 'approve', 'final') NOT NULL,
+      reason TEXT NOT NULL,
+      created_by_user_id INT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_feedback_assessment (assessment_id),
+      INDEX idx_feedback_decision (decision)
+    )
+  `);
+
   console.log("Database tables checked.");
 }
 
@@ -621,6 +634,37 @@ async function createAllDepartmentAssessments(assessmentId) {
     `,
     [values]
   );
+}
+
+async function recordAssessmentFeedback(assessmentId, decision, reason, userId) {
+  const cleanReason = String(reason || "").trim();
+
+  if (!cleanReason) return;
+
+  await runQuery(
+    `
+      INSERT INTO assessment_feedback_logs
+      (assessment_id, decision, reason, created_by_user_id)
+      VALUES (?, ?, ?, ?)
+    `,
+    [assessmentId, decision, cleanReason, userId || null]
+  );
+}
+
+async function getLatestVendorVisibleFeedback(assessmentId) {
+  const rows = await runQuery(
+    `
+      SELECT reason
+      FROM assessment_feedback_logs
+      WHERE assessment_id = ?
+      AND decision IN ('return', 'reject')
+      ORDER BY created_at DESC, feedback_id DESC
+      LIMIT 1
+    `,
+    [assessmentId]
+  );
+
+  return rows[0]?.reason || "";
 }
 
 async function updateMainAssessmentStatus(assessmentId) {
@@ -1619,6 +1663,11 @@ async function getAdminAssessmentBundle(assessmentId = null) {
           va.purpose,
           va.assessment_date,
           va.overall_status,
+          va.vendor_status,
+          va.employee_review_comment,
+          va.vendor_visible_reason,
+          va.employee_decision_by_user_id,
+          va.employee_decision_at,
           va.created_at,
           va.updated_at,
           v.company_name,
@@ -1646,6 +1695,11 @@ async function getAdminAssessmentBundle(assessmentId = null) {
           va.purpose,
           va.assessment_date,
           va.overall_status,
+          va.vendor_status,
+          va.employee_review_comment,
+          va.vendor_visible_reason,
+          va.employee_decision_by_user_id,
+          va.employee_decision_at,
           va.created_at,
           va.updated_at,
           v.company_name,
@@ -1840,6 +1894,11 @@ app.get("/admin/review-assessments", requireRole("employee"), async (_req, res) 
           va.purpose,
           va.assessment_date,
           va.overall_status,
+          va.vendor_status,
+          va.employee_review_comment,
+          va.vendor_visible_reason,
+          va.employee_decision_by_user_id,
+          va.employee_decision_at,
           va.created_at,
           va.updated_at,
           v.company_name,
@@ -2930,7 +2989,19 @@ async function getVendorOwnedAssessment(userId, assessmentId) {
         v.contact_email,
         v.contact_phone,
         employee_da.status AS employee_review_status,
-        COALESCE(NULLIF(va.vendor_visible_reason, ''), NULLIF(va.employee_review_comment, ''), NULLIF(employee_da.admin_comment, '')) AS employee_comment,
+        COALESCE(
+          (
+            SELECT afl.reason
+            FROM assessment_feedback_logs afl
+            WHERE afl.assessment_id = va.assessment_id
+            AND afl.decision IN ('return', 'reject')
+            ORDER BY afl.created_at DESC, afl.feedback_id DESC
+            LIMIT 1
+          ),
+          NULLIF(va.vendor_visible_reason, ''),
+          NULLIF(va.employee_review_comment, ''),
+          NULLIF(employee_da.admin_comment, '')
+        ) AS employee_comment,
         COALESCE(va.employee_decision_at, employee_da.approved_at) AS employee_decision_at
       FROM vendor_assessments va
       JOIN vendors v ON va.vendor_id = v.vendor_id
@@ -3030,7 +3101,19 @@ app.get("/vendor/dashboard", requireVendor, async (req, res) => {
           v.company_name,
           v.product_services_offered,
           employee_da.status AS employee_review_status,
-          COALESCE(NULLIF(va.vendor_visible_reason, ''), NULLIF(va.employee_review_comment, ''), NULLIF(employee_da.admin_comment, '')) AS employee_comment,
+          COALESCE(
+          (
+            SELECT afl.reason
+            FROM assessment_feedback_logs afl
+            WHERE afl.assessment_id = va.assessment_id
+            AND afl.decision IN ('return', 'reject')
+            ORDER BY afl.created_at DESC, afl.feedback_id DESC
+            LIMIT 1
+          ),
+          NULLIF(va.vendor_visible_reason, ''),
+          NULLIF(va.employee_review_comment, ''),
+          NULLIF(employee_da.admin_comment, '')
+        ) AS employee_comment,
           COALESCE(va.employee_decision_at, employee_da.approved_at) AS employee_decision_at
         FROM vendor_assessments va
         JOIN vendors v ON va.vendor_id = v.vendor_id
@@ -3192,7 +3275,19 @@ app.post("/vendor/assessments", requireVendor, async (req, res) => {
           v.company_name,
           v.product_services_offered,
           employee_da.status AS employee_review_status,
-          COALESCE(NULLIF(va.vendor_visible_reason, ''), NULLIF(va.employee_review_comment, ''), NULLIF(employee_da.admin_comment, '')) AS employee_comment,
+          COALESCE(
+          (
+            SELECT afl.reason
+            FROM assessment_feedback_logs afl
+            WHERE afl.assessment_id = va.assessment_id
+            AND afl.decision IN ('return', 'reject')
+            ORDER BY afl.created_at DESC, afl.feedback_id DESC
+            LIMIT 1
+          ),
+          NULLIF(va.vendor_visible_reason, ''),
+          NULLIF(va.employee_review_comment, ''),
+          NULLIF(employee_da.admin_comment, '')
+        ) AS employee_comment,
           COALESCE(va.employee_decision_at, employee_da.approved_at) AS employee_decision_at
         FROM vendor_assessments va
         JOIN vendors v ON va.vendor_id = v.vendor_id
@@ -3502,6 +3597,8 @@ app.post("/employee/vendor-due-diligence/:assessment_id/decision", requireRole("
 
       await runQuery(`UPDATE vendors SET overall_status = 'Pending' WHERE vendor_id = ?`, [assessment.vendor_id]);
 
+      await recordAssessmentFeedback(assessmentId, "return", reason, req.session.user.user_id);
+
       return res.json({
         message: "Vendor submission returned for revision.",
         vendor_visible_reason: reason
@@ -3541,6 +3638,8 @@ app.post("/employee/vendor-due-diligence/:assessment_id/decision", requireRole("
       );
 
       await runQuery(`UPDATE vendors SET overall_status = 'Rejected' WHERE vendor_id = ?`, [assessment.vendor_id]);
+
+      await recordAssessmentFeedback(assessmentId, "reject", reason, req.session.user.user_id);
 
       return res.json({
         message: "Vendor submission rejected.",
@@ -3602,6 +3701,8 @@ app.post("/employee/vendor-due-diligence/:assessment_id/decision", requireRole("
     );
 
     await runQuery(`UPDATE vendors SET overall_status = 'In Review' WHERE vendor_id = ?`, [assessment.vendor_id]);
+
+    await recordAssessmentFeedback(assessmentId, "approve", approvalComment, req.session.user.user_id);
 
     res.json({ message: "Vendor submission approved and routed to departments." });
   } catch (error) {
