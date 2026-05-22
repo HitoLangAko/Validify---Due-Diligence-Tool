@@ -420,12 +420,12 @@ function ensureSubmissionDetailsModal() {
   return modal;
 }
 
-function openSubmissionDetailsModal(item) {
+async function openSubmissionDetailsModal(item) {
   if (!item) return;
 
   const modal = ensureSubmissionDetailsModal();
   const rawStatus = getAssessmentStatus(item);
-  const feedback = getEmployeeFeedback(item);
+  let feedback = getEmployeeFeedback(item);
   const reasonBox = modal.querySelector("#submissionModalReasonBox");
   const openBtn = modal.querySelector("#submissionModalOpenAssessmentBtn");
 
@@ -442,6 +442,20 @@ function openSubmissionDetailsModal(item) {
       : "Employee Reason / Note";
 
   modal.querySelector("#submissionModalReasonLabel").textContent = label;
+  modal.querySelector("#submissionModalReason").textContent = feedback || "Loading employee feedback...";
+
+  try {
+    const feedbackData = await api(`/vendor/assessments/${encodeURIComponent(item.assessment_id)}/feedback`);
+    const liveReason = feedbackData?.feedback?.employee_comment || "";
+    if (liveReason) {
+      feedback = liveReason;
+      const found = assessments.find((assessment) => String(assessment.assessment_id) === String(item.assessment_id));
+      if (found) found.employee_comment = liveReason;
+    }
+  } catch (_error) {
+    // Keep the dashboard-loaded reason if live feedback fetch fails.
+  }
+
   modal.querySelector("#submissionModalReason").textContent = feedback || "No employee reason was recorded for this assessment.";
 
   reasonBox.classList.toggle("rejected", rawStatus === "Rejected");

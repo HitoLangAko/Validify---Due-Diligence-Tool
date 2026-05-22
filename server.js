@@ -3516,6 +3516,129 @@ app.get("/employee/vendor-due-diligence", requireRole("employee"), async (_req, 
   }
 });
 
+app.post("/employee/vendor-due-diligence/:assessment_id/reason", requireRole("employee"), async (req, res) => {
+  const assessmentId = req.params.assessment_id;
+  const decision = String(req.body.decision || req.query.decision || "reject").trim();
+  const reason = String(
+    req.body.reason ||
+    req.body.comment ||
+    req.body.employee_reason ||
+    req.body.rejection_reason ||
+    req.body.return_reason ||
+    req.query.reason ||
+    req.query.comment ||
+    ""
+  ).trim();
+
+  if (!["return", "reject"].includes(decision)) {
+    return res.status(400).json({ message: "Invalid feedback decision." });
+  }
+
+  if (!reason) {
+    return res.status(400).json({ message: "Vendor-visible reason is required." });
+  }
+
+  try {
+    const rows = await runQuery(
+      `
+        SELECT va.assessment_id
+        FROM vendor_assessments va
+        WHERE va.assessment_id = ?
+        LIMIT 1
+      `,
+      [assessmentId]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ message: "Vendor assessment not found." });
+    }
+
+    const employeeAssessment = await ensureDepartmentAssessment(assessmentId, "employee", "Draft");
+
+    await runQuery(
+      `
+        UPDATE vendor_assessments
+        SET
+          employee_review_comment = ?,
+          vendor_visible_reason = ?,
+          employee_decision_by_user_id = ?,
+          employee_decision_at = COALESCE(employee_decision_at, CURRENT_TIMESTAMP),
+          updated_at = CURRENT_TIMESTAMP
+        WHERE assessment_id = ?
+      `,
+      [reason, reason, req.session.user.user_id, assessmentId]
+    );
+
+    await runQuery(
+      `
+        UPDATE department_assessments
+        SET
+          admin_comment = ?,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE department_assessment_id = ?
+      `,
+      [reason, employeeAssessment.department_assessment_id]
+    );
+
+    await recordAssessmentFeedback(assessmentId, decision, reason, req.session.user.user_id);
+
+    res.json({
+      message: "Vendor-visible reason saved.",
+      reason
+    });
+  } catch (error) {
+    console.error("Save vendor visible reason error:", error);
+    res.status(500).json({ message: error.sqlMessage || "Failed to save vendor-visible reason." });
+  }
+});
+
+app.get("/vendor/assessments/:assessment_id/feedback", requireVendor, async (req, res) => {
+  const assessmentId = req.params.assessment_id;
+
+  try {
+    const rows = await runQuery(
+      `
+        SELECT
+          va.assessment_id,
+          va.assessment_code,
+          va.vendor_status,
+          va.overall_status,
+          COALESCE(
+            (
+              SELECT afl.reason
+              FROM assessment_feedback_logs afl
+              WHERE afl.assessment_id = va.assessment_id
+              AND afl.decision IN ('return', 'reject')
+              ORDER BY afl.created_at DESC, afl.feedback_id DESC
+              LIMIT 1
+            ),
+            NULLIF(va.vendor_visible_reason, ''),
+            NULLIF(va.employee_review_comment, ''),
+            NULLIF(employee_da.admin_comment, '')
+          ) AS employee_comment
+        FROM vendor_assessments va
+        JOIN vendors v ON va.vendor_id = v.vendor_id
+        LEFT JOIN department_assessments employee_da
+          ON va.assessment_id = employee_da.assessment_id
+          AND employee_da.department_role = 'employee'
+        WHERE va.assessment_id = ?
+        AND v.user_id = ?
+        LIMIT 1
+      `,
+      [assessmentId, req.session.user.user_id]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ message: "Assessment feedback not found." });
+    }
+
+    res.json({ feedback: rows[0] });
+  } catch (error) {
+    console.error("Fetch vendor feedback error:", error);
+    res.status(500).json({ message: error.sqlMessage || "Failed to load feedback." });
+  }
+});
+
 app.post("/employee/vendor-due-diligence/:assessment_id/decision", requireRole("employee"), async (req, res) => {
   const assessmentId = req.params.assessment_id;
   const { decision } = req.body;
@@ -3526,6 +3649,8 @@ app.post("/employee/vendor-due-diligence/:assessment_id/decision", requireRole("
     req.body.employee_reason ||
     req.body.rejection_reason ||
     req.body.return_reason ||
+    req.query.comment ||
+    req.query.reason ||
     ""
   ).trim();
 

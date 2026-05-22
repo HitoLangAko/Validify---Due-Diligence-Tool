@@ -2550,7 +2550,8 @@ async function submitVendorDueDiligenceDecision(decision, forcedReason = null) {
   if (!confirm(`Are you sure you want to ${labels[decision]}?`)) return;
 
   try {
-    const data = await api(`/employee/vendor-due-diligence/${selectedVendorDueDiligence.assessment_id}/decision`, {
+    const encodedReason = encodeURIComponent(decisionComment || "");
+    const data = await api(`/employee/vendor-due-diligence/${selectedVendorDueDiligence.assessment_id}/decision?reason=${encodedReason}&comment=${encodedReason}`, {
       method: "POST",
       body: JSON.stringify({
         decision,
@@ -2561,6 +2562,20 @@ async function submitVendorDueDiligenceDecision(decision, forcedReason = null) {
         return_reason: decision === "return" ? decisionComment : ""
       })
     });
+
+    if (["return", "reject"].includes(decision)) {
+      await api(`/employee/vendor-due-diligence/${selectedVendorDueDiligence.assessment_id}/reason?decision=${encodeURIComponent(decision)}&reason=${encodedReason}&comment=${encodedReason}`, {
+        method: "POST",
+        body: JSON.stringify({
+          decision,
+          reason: decisionComment,
+          comment: decisionComment,
+          employee_reason: decisionComment,
+          rejection_reason: decision === "reject" ? decisionComment : "",
+          return_reason: decision === "return" ? decisionComment : ""
+        })
+      });
+    }
 
     showToast(data.message || "Vendor due diligence decision saved.");
     if (vendorDueDiligenceDecisionNote) vendorDueDiligenceDecisionNote.value = "";
