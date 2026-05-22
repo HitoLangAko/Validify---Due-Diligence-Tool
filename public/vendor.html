@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Validify - Vendor Portal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <link rel="stylesheet" href="css/vendor.css" />
+  <link rel="stylesheet" href="css/notifications.css">
+</head>
+<body>
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="sidebar-main">
+        <div class="sidebar-header">
+          <div class="logo-box"><i class="fa-solid fa-check"></i></div>
+          <div class="logo-text"><span>Valid</span><strong>ify</strong></div>
+        </div>
+
+        <nav class="sidebar-nav">
+          <button class="nav-item active" type="button" data-page="dashboard">
+            <i class="fa-solid fa-house"></i>
+            <span>Dashboard</span>
+          </button>
+
+          <button class="nav-item" type="button" data-page="credentials">
+            <i class="fa-solid fa-building"></i>
+            <span>Vendor Credentials</span>
+          </button>
+
+          <button class="nav-item" type="button" data-page="create-assessment">
+            <i class="fa-solid fa-plus"></i>
+            <span>Create Assessment</span>
+          </button>
+
+          <div class="nav-dropdown open">
+            <button class="dropdown-toggle" type="button">
+              <div class="toggle-left">
+                <i class="fa-solid fa-file-lines"></i>
+                <span>Due Diligence Form</span>
+              </div>
+              <i class="fa-solid fa-chevron-right arrow"></i>
+            </button>
+            <div class="dropdown-content">
+              <button type="button" data-section="vendor_info">Vendor Information</button>
+              <button type="button" data-section="consumer">Consumer</button>
+              <button type="button" data-section="it_risk">IT Risk Management</button>
+              <button type="button" data-section="compliance">Compliance</button>
+              <button type="button" data-section="resiliency">Resiliency</button>
+              <button type="button" data-section="data_privacy">Data Privacy</button>
+              <button type="button" data-section="environmental">Environmental & Social Risk</button>
+            </div>
+          </div>
+
+          <div class="nav-dropdown">
+            <button class="dropdown-toggle" type="button">
+              <div class="toggle-left">
+                <i class="fa-solid fa-shield-halved"></i>
+                <span>Information Security</span>
+              </div>
+              <i class="fa-solid fa-chevron-right arrow"></i>
+            </button>
+            <div class="dropdown-content">
+              <button type="button" data-section="infosec">Form for IS</button>
+            </div>
+          </div>
+        </nav>
+      </div>
+      <div class="sidebar-footer">
+        <button class="vendor-account-button" type="button" id="vendorAccountToggle">
+          <div class="vendor-account-left">
+            <div class="account-avatar" id="accountAvatar">V</div>
+            <div>
+              <strong id="accountName">Vendor Account</strong>
+              <small id="accountRoleText">Vendor Portal</small>
+            </div>
+          </div>
+          <i class="fa-solid fa-chevron-right account-chevron"></i>
+        </button>
+
+        <div class="vendor-account-menu hidden" id="vendorAccountMenu">
+          <div class="vendor-account-menu-head">
+            <div class="account-avatar account-menu-avatar" id="accountMenuAvatar">V</div>
+            <div class="account-menu-user">
+              <strong id="accountMenuName">Vendor Account</strong>
+              <small id="accountMenuRoleText">Vendor Portal</small>
+            </div>
+            <i class="fa-solid fa-chevron-right"></i>
+          </div>
+
+          <div class="account-menu-line"></div>
+
+          <button type="button" class="vendor-account-menu-action" id="vendorProfileBtn">
+            <i class="fa-solid fa-user"></i>
+            <span>Profile</span>
+          </button>
+
+          <button type="button" class="vendor-account-menu-action" id="vendorHelpBtn">
+            <i class="fa-solid fa-circle-question"></i>
+            <span>Help</span>
+          </button>
+
+          <div class="account-menu-line"></div>
+
+          <button class="vendor-menu-logout" id="logoutBtn" type="button">
+            <i class="fa-solid fa-right-from-bracket"></i>
+            <span>Logout</span>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <div id="toast" class="toast"></div>
+
+      <section class="page active" id="dashboardPage">
+        <span class="page-label">Dashboard</span>
+        <header class="top-bar">
+          <h1 class="page-title">Dashboard</h1>
+          <div class="header-actions">
+            <div class="notif-wrapper" id="notifWrapper">
+              <button class="icon-btn notif-bell" id="notifBell" aria-label="Notifications" aria-expanded="false">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18"
+                    viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                </svg>
+                <span class="notif-badge" id="notifBadge" style="display:none;">0</span>
+              </button>
+              <div class="notif-dropdown hidden" id="notifDropdown">
+                <div class="notif-header">
+                  <span>Notifications</span>
+                  <button class="notif-mark-all" id="notifMarkAll">Mark all as read</button>
+                </div>
+                <ul class="notif-list" id="notifList"></ul>
+                <div class="notif-empty hidden" id="notifEmpty">No new notifications.</div>
+              </div>
+            </div>
+            <button class="icon-btn" id="darkModeBtn" type="button" aria-label="Toggle dark mode">
+              <i class="fa-solid fa-moon"></i>
+            </button>
+            <button class="primary-btn" id="openCreateAssessmentBtn" type="button">
+              <i class="fa-solid fa-plus"></i>
+              Create Assessment
+            </button>
+          </div>
+        </header>
+
+        <section class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-info">
+              <span class="stat-label">Total Created</span>
+              <h2 class="stat-value" id="statTotal">0</h2>
+            </div>
+            <div class="stat-icon icon-orange"><i class="fa-solid fa-file-circle-plus"></i></div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-info">
+              <span class="stat-label">Total Drafted</span>
+              <h2 class="stat-value" id="statDrafted">0</h2>
+            </div>
+            <div class="stat-icon icon-gray"><i class="fa-solid fa-pen-to-square"></i></div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-info">
+              <span class="stat-label">Total Submitted</span>
+              <h2 class="stat-value" id="statSubmitted">0</h2>
+            </div>
+            <div class="stat-icon icon-purple"><i class="fa-solid fa-paper-plane"></i></div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-info">
+              <span class="stat-label">Total Returned</span>
+              <h2 class="stat-value" id="statReturned">0</h2>
+            </div>
+            <div class="stat-icon icon-red"><i class="fa-solid fa-rotate-left"></i></div>
+          </div>
+        </section>
+
+        <section class="validify-card table-card">
+          <div class="section-head-row">
+            <h3 class="section-title">Recent Assessments</h3>
+            <button class="secondary-btn" type="button" id="clearDemoDataBtn">Clear Local Demo Data</button>
+          </div>
+          <div class="table-responsive">
+            <table class="assessment-table">
+              <thead>
+                <tr>
+                  <th>Assessment Name</th>
+                  <th>Vendor</th>
+                  <th>Date Modified</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="recentAssessmentBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <section class="page" id="credentialsPage">
+        <span class="page-label">Vendor Information Form</span>
+        <header class="top-bar simple-topbar">
+          <h1 class="page-title">Vendor Credentials</h1>
+        </header>
+
+        <div class="validify-card">
+          <form id="credentialsForm">
+            <div class="form-grid-2x2">
+              <div class="input-wrapper">
+                <label for="companyName">Company Name</label>
+                <input type="text" id="companyName" placeholder="Enter company name" required />
+              </div>
+              <div class="input-wrapper">
+                <label for="companyWebsite">Company Website</label>
+                <input type="url" id="companyWebsite" placeholder="https://example.com" required />
+              </div>
+            </div>
+
+            <div class="input-wrapper full-width-field">
+              <label for="productServices">Product / Services Offered</label>
+              <textarea id="productServices" placeholder="Describe your services" required></textarea>
+            </div>
+
+            <div class="form-grid-2x2">
+              <div class="input-wrapper">
+                <label for="contactName">Contact Person Name</label>
+                <input type="text" id="contactName" placeholder="e.g., Mark Santos" required />
+              </div>
+              <div class="input-wrapper">
+                <label for="contactEmail">Contact Email</label>
+                <input type="email" id="contactEmail" placeholder="name@company.com" required />
+              </div>
+            </div>
+
+            <div class="form-grid-2x2 one-col-mobile">
+              <div class="input-wrapper">
+                <label for="contactPhone">Contact Number</label>
+                <input type="text" id="contactPhone" placeholder="+63 912 123 4567" required />
+              </div>
+            </div>
+
+            <div class="form-actions">
+              <button type="button" class="secondary-btn" id="resetCredentialsBtn">Clear</button>
+              <button type="submit" class="action-submit-btn blue-variant-btn">Save Vendor</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section class="page" id="createAssessmentPage">
+        <span class="page-label">Create an Assessment</span>
+        <header class="top-bar simple-topbar">
+          <h1 class="page-title">Assessment</h1>
+        </header>
+
+        <div class="validify-card selection-card-spacing">
+          <form id="createAssessmentForm">
+            <div class="input-wrapper full-width-field">
+              <label for="selectVendor">Select Vendor</label>
+              <select id="selectVendor" required></select>
+            </div>
+
+            <div class="form-grid-2x2">
+              <div class="input-wrapper">
+                <label for="assessmentDate">Assessment Date</label>
+                <input type="date" id="assessmentDate" required />
+              </div>
+
+              <div class="input-wrapper">
+                <label for="assessmentPurpose">Purpose</label>
+                <select id="assessmentPurpose" required>
+                  <option value="" disabled selected>Select review purpose</option>
+                  <option value="Accreditation">Accreditation</option>
+                  <option value="Re-accreditation">Re-accreditation</option>
+                  <option value="New Contract">New Contract</option>
+                  <option value="Renewal">Renewal</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-actions">
+              <button type="submit" class="action-submit-btn blue-variant-btn">Create Assessment</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="validify-card compact-card">
+          <div class="input-wrapper full-width-field">
+            <label for="selectExisting">Select Existing Assessment</label>
+            <select id="selectExisting"></select>
+          </div>
+        </div>
+      </section>
+
+      <section class="page" id="assessmentWorkspacePage">
+        <span class="page-label" id="breadcrumbLabel">Due Diligence Form / Vendor Info</span>
+        <header class="top-bar workspace-topbar">
+          <div>
+            <h1 class="page-title" id="sectionTitle">Vendor Information Section</h1>
+            <p class="workspace-subtitle" id="activeAssessmentLabel">No active assessment selected.</p>
+          </div>
+          <button class="secondary-btn" id="backToDashboardBtn" type="button">Back to Dashboard</button>
+        </header>
+
+        <div class="validify-card assessment-status-card">
+          <div>
+            <span class="mini-label">Active Vendor</span>
+            <strong id="activeVendorName">None selected</strong>
+          </div>
+          <div>
+            <span class="mini-label">Purpose</span>
+            <strong id="activePurpose">N/A</strong>
+          </div>
+          <div>
+            <span class="mini-label">Status</span>
+            <span class="status-pill" id="activeStatus">Draft</span>
+          </div>
+        </div>
+
+        <div class="validify-card">
+          <form id="dynamicAssessmentForm">
+            <div id="questionsContainer"></div>
+
+            <div class="workbench-form-footer">
+              <button type="button" id="saveDraftBtn" class="action-submit-btn draft-variant-btn">
+                <i class="fa-solid fa-floppy-disk"></i>
+                Save Draft
+              </button>
+              <button type="button" id="submitNextBtn" class="action-submit-btn blue-variant-btn">
+                Next Section
+                <i class="fa-solid fa-arrow-right"></i>
+              </button>
+            </div>
+          </form>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="js/vendor.js"></script>
+  <script src="js/notifications.js"></script>
+</body>
+</html>

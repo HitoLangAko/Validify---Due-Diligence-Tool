@@ -1,3 +1,4 @@
+/* EMPLOYEE PAGE CSS - separated from original style.css */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 * {
@@ -3905,3 +3906,5 @@ input[type="file"]:not(.hidden):hover::file-selector-button,
   font-size: 13px;
   font-weight: 600;
 }
+/* Employee / Compliance Officer page-only overrides */
+body { }

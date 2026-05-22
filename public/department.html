@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Validify Department Reviewer</title>
+<link href="css/department.css" rel="stylesheet"/>
+<link rel="stylesheet" href="css/notifications.css">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet"/>
+</head>
+<body>
+<div class="app-layout">
+<aside class="sidebar">
+<div class="sidebar-main">
+<div class="brand">
+<img alt="Validify Logo" class="validify-logo-img" src="images/validify-logo.png"/>
+<h1>Validify</h1>
+</div>
+<nav class="nav-menu">
+<button class="nav-link" data-page="dashboard" data-roles="it,infosec,management,dpo,hr,compliance,admin" type="button">
+<i class="fa-solid fa-house"></i>
+<span>Dashboard</span>
+</button>
+
+<button class="nav-link" data-page="vendor-assessment" data-roles="employee,it,infosec,management,dpo,hr,compliance" id="vendorAssessmentNavBtn" type="button">
+<i class="fa-solid fa-clipboard-check"></i>
+<span>Vendor Assessment</span>
+</button>
+<button class="nav-link" data-page="vendor-queue" data-roles="it,infosec,management,dpo,hr,compliance" type="button">
+<i class="fa-solid fa-list-check"></i>
+<span>Vendor Queue</span>
+</button>
+<button class="nav-link" data-page="pending-approval" data-roles="it,infosec,management,dpo,hr,compliance" type="button">
+<i class="fa-solid fa-clock"></i>
+<span>Pending Approval</span>
+</button>
+<button class="nav-link" data-page="signoff" data-roles="it,infosec,management,dpo,hr,compliance" type="button">
+<i class="fa-solid fa-file-signature"></i>
+<span>Sign off</span>
+</button>
+
+<button class="nav-link" data-page="my-submissions" data-roles="employee,it,infosec,management,dpo,hr,compliance" type="button">
+<i class="fa-solid fa-folder-open"></i>
+<span>My Submissions</span>
+</button>
+</nav>
+</div>
+<div class="sidebar-bottom">
+<button class="account-button" id="accountToggle" type="button">
+<div class="account-left">
+<div class="account-avatar" id="accountAvatar">U</div>
+<div>
+<strong id="accountUserName">Account</strong>
+<small id="accountRoleText">Role</small>
+</div>
+</div>
+<i class="fa-solid fa-chevron-right account-chevron"></i>
+</button>
+<div class="account-menu hidden" id="accountMenu">
+<div class="account-menu-head">
+<div class="account-menu-avatar" id="accountMenuAvatar">U</div>
+<div class="account-menu-user">
+<strong id="accountMenuUserName">User</strong>
+<small id="accountMenuRoleText">Role</small>
+</div>
+<i class="fa-solid fa-chevron-right"></i>
+</div>
+<div class="account-line"></div>
+<button class="account-menu-action" id="profileBtn" type="button">
+<i class="fa-solid fa-user"></i>
+<span>Profile</span>
+</button>
+<button class="account-menu-action" id="helpBtn" type="button">
+<i class="fa-solid fa-circle-question"></i>
+<span>Help</span>
+</button>
+<div class="account-line"></div>
+<button class="logout-btn" id="logoutBtn" type="button">
+<i class="fa-solid fa-right-from-bracket"></i>
+<span>Logout</span>
+</button>
+</div>
+</div>
+</aside>
+<main class="main-content">
+<header class="topbar">
+<div>
+<p id="breadcrumb">Loading...</p>
+<h2 id="pageTitle">Dashboard</h2>
+<p class="muted" id="roleHelper">Loading role...</p>
+</div>
+<div class="top-actions">
+<div class="notif-wrapper" id="notifWrapper">
+  <button class="icon-button notif-bell" id="notifBell" aria-label="Notifications" aria-expanded="false">
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18"
+        viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+      <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+    </svg>
+    <span class="notif-badge" id="notifBadge" style="display:none;">0</span>
+  </button>
+  <div class="notif-dropdown hidden" id="notifDropdown">
+    <div class="notif-header">
+      <span>Notifications</span>
+      <button class="notif-mark-all" id="notifMarkAll">Mark all as read</button>
+    </div>
+    <ul class="notif-list" id="notifList"></ul>
+    <div class="notif-empty hidden" id="notifEmpty">No new notifications.</div>
+  </div>
+</div>
+<button class="icon-button" id="darkModeBtn" type="button">
+<i class="fa-solid fa-moon"></i>
+</button>
+<button class="primary-action" id="refreshBtn" type="button">
+<i class="fa-solid fa-rotate"></i>
+            Refresh
+          </button>
+</div>
+</header>
+<section class="page" id="dashboardPage">
+<div class="stats-grid employee-dashboard-cards" id="departmentStatsGrid">
+<div class="stat-card">
+<div>
+<p>Total Assigned</p>
+<h3 id="deptTotalAssigned">0</h3>
+</div>
+<span class="stat-icon blue"><i class="fa-solid fa-folder-open"></i></span>
+</div>
+<div class="stat-card">
+<div>
+<p>Pending</p>
+<h3 id="deptPending">0</h3>
+</div>
+<span class="stat-icon orange"><i class="fa-solid fa-clock"></i></span>
+</div>
+<div class="stat-card">
+<div>
+<p>Submitted</p>
+<h3 id="deptReviewed">0</h3>
+</div>
+<span class="stat-icon green"><i class="fa-solid fa-check"></i></span>
+</div>
+<div class="stat-card">
+<div>
+<p>Rejected</p>
+<h3 id="deptRejected">0</h3>
+</div>
+<span class="stat-icon red"><i class="fa-solid fa-xmark"></i></span>
+</div>
+</div>
+<div class="stats-grid employee-dashboard-cards hidden" id="adminStatsGrid">
+<div class="stat-card">
+<div>
+<p>Total Vendors</p>
+<h3 id="adminTotalVendors">0</h3>
+</div>
+<span class="stat-icon blue"><i class="fa-solid fa-building"></i></span>
+</div>
+<div class="stat-card">
+<div>
+<p>Pending Vendors</p>
+<h3 id="adminPendingReviews">0</h3>
+</div>
+<span class="stat-icon orange"><i class="fa-solid fa-clock"></i></span>
+</div>
+<div class="stat-card">
+<div>
+<p>Completed Vendors</p>
+<h3 id="adminCompletedVendors">0</h3>
+</div>
+<span class="stat-icon green"><i class="fa-solid fa-check"></i></span>
+</div>
+<div class="stat-card">
+<div>
+<p>Rejected Vendors</p>
+<h3 id="adminRejectedVendors">0</h3>
+</div>
+<span class="stat-icon red"><i class="fa-solid fa-xmark"></i></span>
+</div>
+</div>
+<div class="content-card">
+<h3 id="dashboardTableTitle">Recent Vendor Assessments</h3>
+<div class="table-wrap">
+<table>
+<thead id="dashboardTableHead"></thead>
+<tbody id="dashboardTableBody">
+<tr><td class="empty-cell">Loading...</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+</section>
+
+<section class="page" id="mySubmissionsPage">
+<div class="content-card">
+<h3>My Submissions</h3>
+<div class="table-wrap">
+<table>
+<thead id="mySubmissionsHead">
+<tr>
+<th>Company Name</th>
+<th>Services</th>
+<th>Contact</th>
+<th>Overall Status</th>
+<th>Date Submitted</th>
+</tr>
+</thead>
+<tbody id="mySubmissionsBody">
+<tr><td class="empty-cell" colspan="5">No submissions yet.</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+</section>
+<section class="page" id="vendorQueuePage">
+<div class="content-card">
+<h3>Vendor Queue</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Vendor</th>
+<th>Department</th>
+<th>Submitted By</th>
+<th>Status</th>
+<th>Actions</th>
+</tr>
+</thead>
+<tbody id="vendorQueueBody">
+<tr><td class="empty-cell" colspan="6">No vendors waiting for assessment.</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+</section>
+<section class="page" id="vendorAssessmentPage">
+<div class="content-card vendor-assessment-card">
+<h3>Vendor Assessment</h3>
+<div class="vendor-success-card hidden" id="assessmentSuccessPanel">
+<p class="vendor-success-title">
+<i class="fa-solid fa-check"></i>
+<span id="assessmentSuccessTitle">Vendor saved.</span>
+</p>
+<p class="vendor-success-message" id="assessmentSuccessMessage">
+              Select an assessment date and purpose, then create the Vendor Assessment to assign it to departments.
+            </p>
+</div>
+<div class="assessment-meta-grid">
+<div class="field-group">
+<label>Assessment ID</label>
+<input id="infosecAssessmentCode" placeholder="Auto-generated ID" readonly="" type="text"/>
+</div>
+<div class="field-group">
+<label>Assessment Date</label>
+<input id="infosecAssessmentDate" required="" type="date"/>
+</div>
+<div class="field-group">
+<label>Select Vendor / Assessment</label>
+<select id="infosecVendorSelect" required="">
+<option value="">Select Vendor / Assessment</option>
+</select>
+</div>
+<div class="field-group">
+<label>Purpose</label>
+<select id="infosecPurpose" required="">
+<option value="">Select purpose</option>
+<option value="Accreditation">Accreditation</option>
+<option value="Re-accreditation">Re-accreditation</option>
+<option value="New Contract">New Contract</option>
+<option value="Renewal">Renewal</option>
+</select>
+</div>
+</div>
+<div class="assessment-create-row">
+<button class="submit-draft-btn" id="createInfoSecAssessmentBtn" type="button">
+              Create Assessment
+              <i class="fa-solid fa-arrow-right"></i>
+</button>
+</div>
+</div>
+<div class="content-card existing-assessment-card">
+<div class="field-group">
+<label>Select Existing Assessment</label>
+<select id="existingInfoSecAssessment">
+<option value="">Select Existing Assessment</option>
+</select>
+</div>
+</div>
+<div class="content-card currently-assessing-card">
+<h3>Vendor Being Assessed</h3>
+<p><strong id="currentlyAssessingVendor">No vendor selected</strong></p>
+<p class="muted" id="currentlyAssessingServices">Create or select an assessment first.</p>
+</div>
+<div class="content-card infosec-form-card">
+<form id="infosecForm">
+<div id="infosecQuestionsWrap">
+<p class="empty-cell">
+                Select a vendor and click Create Assessment to begin.
+              </p>
+</div>
+<div class="vendor-form-actions">
+<button class="clear-form-btn" id="cancelInfoSecAssessmentBtn" type="button">
+                Cancel
+              </button>
+<button class="submit-draft-btn" id="submitDepartmentFormBtn" type="submit">
+<span id="submitDepartmentFormText">Submit Department Form to Compliance Officer</span>
+<i class="fa-solid fa-arrow-right"></i>
+</button>
+</div>
+</form>
+</div>
+</section>
+<section class="page" id="pendingApprovalPage">
+<div class="content-card">
+<h3>Pending Approval</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>Assessment ID</th>
+<th>Vendor</th>
+<th>Department</th>
+<th>Status</th>
+<th>Date Submitted</th>
+</tr>
+</thead>
+<tbody id="pendingApprovalBody">
+<tr><td class="empty-cell" colspan="5">No pending approvals yet.</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+</section>
+<section class="page" id="signoffPage">
+<div class="content-card signoff-wrapper">
+<div class="signoff-header">
+<h3>Sign-off Authorization</h3>
+<p>Please provide your digital signature details to finalize approval.</p>
+</div>
+<form class="signoff-form" id="signoffForm">
+<div class="field-group">
+<label>Department / Role</label>
+<select id="signoffRole" required="">
+<option value="">Select Role</option>
+<option value="">Select Role</option>
+</select>
+</div>
+<div class="field-group">
+<label>Signer's Full Name</label>
+<input id="signoffName" placeholder="Enter Full Name" required="" type="text"/>
+</div>
+<div class="field-group">
+<label>Approval Decision</label>
+<div class="signoff-radio-row">
+<label>
+<input checked="" name="approvalDecision" type="radio" value="Signed"/>
+                  Approve and Sign
+                </label>
+<label>
+<input name="approvalDecision" type="radio" value="Pending"/>
+                  Keep Pending
+                </label>
+</div>
+</div>
+<div class="field-group">
+<label>Digital Signature</label>
+<label class="signature-upload-btn" for="signatureFile">
+<i class="fa-solid fa-upload"></i>
+<span id="signatureFileName">Upload Signature</span>
+</label>
+<input accept="image/png,image/jpeg,image/jpg" class="hidden" id="signatureFile" name="signature" type="file"/>
+</div>
+<div class="signoff-actions">
+<button class="signoff-cancel-btn" id="cancelSignoffBtn" type="button">
+                Cancel
+              </button>
+<button class="signoff-confirm-btn" type="submit">
+                Confirm &amp; Sign-Off
+              </button>
+</div>
+</form>
+</div>
+</section>
+
+
+
+
+
+
+<section class="page" id="profilePage">
+<div class="profile-settings-card">
+<div class="profile-card-header">
+<h3>Profile Settings</h3>
+<p>Manage your account information and profile photo.</p>
+</div>
+<form enctype="multipart/form-data" id="profileForm">
+<div class="profile-layout">
+<div class="profile-photo-area">
+<div class="profile-photo-preview" id="profilePhotoPreview">
+<i class="fa-solid fa-user"></i>
+</div>
+<label class="profile-upload-btn" for="profilePhotoInput">
+<i class="fa-solid fa-upload"></i>
+            Upload Photo
+          </label>
+<input accept="image/*" class="hidden" id="profilePhotoInput" name="profile_photo" type="file"/>
+</div>
+<div class="profile-fields-area">
+<div class="form-grid two-col">
+<div class="field-group">
+<label>First Name</label>
+<input id="profileFirstName" placeholder="Enter first name" type="text"/>
+</div>
+<div class="field-group">
+<label>Last Name</label>
+<input id="profileLastName" placeholder="Enter last name" type="text"/>
+</div>
+</div>
+<div class="form-grid two-col">
+<div class="field-group">
+<label>Job Title</label>
+<input id="profileJobTitle" placeholder="Enter job title" type="text"/>
+</div>
+<div class="field-group">
+<label>Work Email</label>
+<input id="profileWorkEmail" placeholder="Enter work email" type="email"/>
+</div>
+</div>
+<div class="profile-actions">
+<button class="submit-draft-btn" type="submit">
+              Save Changes
+            </button>
+</div>
+</div>
+</div>
+</form>
+</div>
+</section>
+<section class="page" id="helpPage">
+<div class="content-card">
+<h3>Help</h3>
+<p class="muted">
+      For assistance, contact your system administrator or project support lead.
+    </p>
+<div class="help-list">
+<div>
+<strong>Employee</strong>
+<p>Create vendors, submit vendor information, and create vendor assessments.</p>
+</div>
+<div>
+<strong>Departments</strong>
+<p>Review assigned assessments and submit department forms.</p>
+</div>
+<div>
+<strong>Compliance Officer</strong>
+<p>Review submissions, finalize assessments, and generate reports.</p>
+</div>
+</div>
+</div>
+</section>
+</main>
+</div>
+<div class="toast" id="toast"></div>
+<script src="js/department.js"></script>
+<script src="js/notifications.js"></script>
+</body>
+</html>

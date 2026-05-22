@@ -1,0 +1,5 @@
+ALTER TABLE users
+  ADD COLUMN otp_verified TINYINT(1) DEFAULT 1,
+  ADD COLUMN otp_code_hash VARCHAR(255) NULL,
+  ADD COLUMN otp_expires DATETIME NULL,
+  ADD COLUMN otp_attempts INT DEFAULT 0;

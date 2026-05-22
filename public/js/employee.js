@@ -1,3 +1,97 @@
+/* Strong dashboard back-button guard.
+   Keeps logged-in users on their current dashboard even after repeated Back clicks.
+   Logout and role redirects set window.__validifyAllowNavigation = true to bypass this guard. */
+let isLoggingOut = false;
+window.__validifyAllowNavigation = false;
+
+function validifyLockDashboardBackButton() {
+  const lockedUrl = window.location.href;
+
+  function shouldLock() {
+    return !isLoggingOut && !window.__validifyAllowNavigation;
+  }
+
+  function addLockState() {
+    if (!shouldLock()) return;
+
+    try {
+      window.history.pushState(
+        { validifyDashboardLock: true, timestamp: Date.now() },
+        "",
+        lockedUrl
+      );
+    } catch (_error) {}
+  }
+
+  try {
+    window.history.replaceState(
+      { validifyDashboardLock: true, timestamp: Date.now() },
+      "",
+      lockedUrl
+    );
+
+    // Add several lock states so fast repeated Back clicks cannot easily leave the dashboard.
+    for (let index = 0; index < 80; index += 1) {
+      addLockState();
+    }
+  } catch (_error) {}
+
+  window.addEventListener("popstate", () => {
+    if (!shouldLock()) return;
+
+    // Refill immediately and on the next frame to resist rapid Back clicking.
+    addLockState();
+    window.setTimeout(addLockState, 0);
+    window.requestAnimationFrame(addLockState);
+  });
+
+  window.addEventListener("pageshow", () => {
+    if (!shouldLock()) return;
+    window.setTimeout(addLockState, 0);
+  });
+
+  // Small safety refill. This keeps the page protected even after long idle time.
+  window.setInterval(() => {
+    if (!shouldLock()) return;
+    const state = window.history.state || {};
+
+    if (!state.validifyDashboardLock) {
+      addLockState();
+    }
+  }, 1000);
+}
+
+function validifyGoToLogin() {
+  isLoggingOut = true;
+  window.__validifyAllowNavigation = true;
+  window.location.replace("login.html");
+}
+
+function validifyGoToPage(page) {
+  window.__validifyAllowNavigation = true;
+  window.location.replace(page || "login.html");
+}
+
+validifyLockDashboardBackButton();
+
+// EMPLOYEE PAGE JS - separated from original script.js
+window.VALIDIFY_ALLOWED_ROLES = ["employee"];
+
+const VALIDIFY_ROLE_PAGES = {
+  employee: "employee.html",
+  admin: "employee.html",
+  it: "department.html",
+  infosec: "department.html",
+  management: "department.html",
+  dpo: "department.html",
+  hr: "department.html",
+  compliance: "department.html"
+};
+
+function redirectToRoleHome(role) {
+  validifyGoToPage(VALIDIFY_ROLE_PAGES[role] || "login.html");
+}
+
 let currentUser = null;
 let currentRole = "";
 let employeeRows = [];
@@ -17,20 +111,20 @@ let selectedReportingAssessment = null;
 let assessmentSummaryData = null;
 
 const roleLabels = {
-  employee: "Employee",
+  employee: "Employee / Compliance Officer",
   it: "IT",
   infosec: "InfoSec",
   management: "Management",
   dpo: "DPO",
   hr: "HR",
   compliance: "Compliance",
-  admin: "Admin"
+  admin: "Employee / Compliance Officer"
 };
 
 const departmentRoles = ["it", "infosec", "management", "dpo", "hr", "compliance"];
 
 const defaultPageByRole = {
-  employee: "add-vendor",
+  employee: "dashboard",
   it: "dashboard",
   infosec: "dashboard",
   management: "dashboard",
@@ -158,6 +252,7 @@ function isDepartmentRole(role = currentRole) {
 
 function escapeHTML(value) {
   return String(value ?? "")
+    .replaceAll("Pending Admin Approval", "Pending Compliance Review")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;");
@@ -569,7 +664,7 @@ function updateAssessmentSubmitButtonText() {
 
   submitDepartmentFormText.textContent = currentRole === "employee"
     ? "Submit Vendor Information"
-    : "Submit Department Form to Admin";
+    : "Submit Department Form to Compliance Officer";
 }
 
 async function api(url, options = {}) {
@@ -599,8 +694,17 @@ async function checkLoggedInUser() {
   try {
     currentUser = await api("/me");
     currentRole = currentUser.role;
+
+    if (
+      Array.isArray(window.VALIDIFY_ALLOWED_ROLES) &&
+      !window.VALIDIFY_ALLOWED_ROLES.includes(currentRole)
+    ) {
+      redirectToRoleHome(currentRole);
+      return;
+    }
   } catch (_error) {
-    window.location.href = "login.html";
+    window.__validifyAllowNavigation = true;
+    window.location.replace("login.html");
     return;
   }
   applyRoleLayout();
@@ -633,11 +737,11 @@ function applyRoleLayout() {
 
   if (roleHelper) {
     if (currentRole === "employee") {
-      roleHelper.textContent = "Standard Employee Portal: add vendors and create the main vendor assessment request.";
+      roleHelper.textContent = "Vendor Management & Compliance Officer Portal: create vendors, route assessments, review findings, finalize decisions, and generate reports.";
     } else if (isDepartmentRole()) {
       roleHelper.textContent = `${label} Console: answer your department form for shared vendor assessments.`;
-    } else if (currentRole === "admin") {
-      roleHelper.textContent = "Admin CISO System: monitor all vendors and department reviews.";
+    } else if (currentRole === "employee") {
+      roleHelper.textContent = "Compliance Officer Portal: monitor vendors, review department findings, finalize assessments, and generate reports.";
     }
   }
 
@@ -697,7 +801,7 @@ async function refreshCurrentPage(_page = getCurrentPage()) {
     if (isDepartmentRole()) {
       await loadDepartmentWorkflowData();
     }
-    if (currentRole === "admin") {
+    if (currentRole === "employee") {
       await loadAdminData();
       if (_page === "assessment-review") {
         await loadAdminReviewData();
@@ -1173,7 +1277,7 @@ async function createOrStartAssessment() {
       updateAssessmentSubmitButtonText();
       showAssessmentSuccess(
         `Vendor Assessment ${assessment.assessment_code || "created"} created.`,
-        "Assessment created and assigned to departments. Complete the Vendor Information section, then click Submit Vendor Information so Admin can review it and include it in the Excel report."
+        "Assessment created and assigned to departments. Complete the Vendor Information section, then click Submit Vendor Information so the Compliance Officer can review it and include it in the Excel report."
       );
       showToast("Vendor assessment created. You can now submit Vendor Information.");
       return;
@@ -1244,13 +1348,13 @@ async function submitDepartmentForm(event) {
 
   try {
     await api(`/department/assessments/${activeMainAssessment.assessment_id}/submit`, { method: "POST", body: formData });
-    showToast(currentRole === "employee" ? "Vendor Information submitted to Admin." : `${getRoleLabel()} assessment submitted to Admin.`);
+    showToast(currentRole === "employee" ? "Vendor Information submitted to Compliance Officer." : `${getRoleLabel()} assessment submitted to Compliance Officer.`);
     if (currentRole === "employee") {
       await loadEmployeeData();
       await loadEmployeeAssessment(activeMainAssessment.assessment_id);
       showAssessmentSuccess(
         "Vendor Information submitted.",
-        "Vendor Information was sent to Admin for review and will be included in the Excel report."
+        "Vendor Information was saved for Compliance Officer review and will be included in the Excel report."
       );
       showPage("vendor-assessment");
     } else {
@@ -1302,7 +1406,7 @@ function renderAdminStats() {
 }
 
 function renderAdminDashboardTable() {
-  if (!dashboardTableHead || !dashboardTableBody || currentRole !== "admin") return;
+  if (!dashboardTableHead || !dashboardTableBody || currentRole !== "employee") return;
   if (dashboardTableTitle) dashboardTableTitle.textContent = "Latest Vendors";
   dashboardTableHead.innerHTML = `<tr><th>Vendor</th><th>Services</th><th>Submitted By</th><th>Overall Status</th><th>Date Submitted</th></tr>`;
   const rows = adminRows.slice(0, 5);
@@ -1870,7 +1974,7 @@ async function generateAdminExcel() {
 function updateTopActionButton() {
   if (!refreshBtn) return;
 
-  if (currentRole === "admin") {
+  if (currentRole === "employee") {
     refreshBtn.innerHTML = `<i class="fa-solid fa-file-excel"></i> Generate Excel`;
   } else {
     refreshBtn.innerHTML = `<i class="fa-solid fa-rotate"></i> Refresh`;
@@ -2103,7 +2207,7 @@ function setupEvents() {
 
   if (refreshBtn) {
   refreshBtn.addEventListener("click", async () => {
-    if (currentRole === "admin") {
+    if (currentRole === "employee") {
       await generateAdminExcel();
       return;
     }
@@ -2129,9 +2233,18 @@ function setupEvents() {
 
   if (logoutBtn) {
     logoutBtn.addEventListener("click", async () => {
-      try { await fetch("/logout", { method: "POST", credentials: "same-origin" }); } catch (error) { console.error(error); }
+      isLoggingOut = true;
+      window.__validifyAllowNavigation = true;
+
+      try {
+        await fetch("/logout", { method: "POST", credentials: "same-origin" });
+      } catch (error) {
+        console.error(error);
+      }
+
       sessionStorage.clear();
-      window.location.href = "login.html";
+      localStorage.removeItem("currentUser");
+      validifyGoToLogin();
     });
   }
 
