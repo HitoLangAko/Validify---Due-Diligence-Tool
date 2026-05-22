@@ -546,10 +546,10 @@ async function initDatabase() {
       access_code VARCHAR(64) NOT NULL UNIQUE,
       vendor_email VARCHAR(150) NULL,
       company_name VARCHAR(150) NULL,
-      status ENUM('ACTIVE', 'USED', 'REVOKED') DEFAULT 'ACTIVE',
-      created_by_user_id INT NOT NULL,
+      status VARCHAR(20) DEFAULT 'ACTIVE',
+      created_by_user_id INT NULL,
       used_by_user_id INT NULL,
-      used_at TIMESTAMP NULL,
+      used_at DATETIME NULL,
       expires_at DATETIME NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
@@ -557,10 +557,29 @@ async function initDatabase() {
 
   await addColumnIfMissing("vendor_registration_access", "vendor_email", "VARCHAR(150) NULL");
   await addColumnIfMissing("vendor_registration_access", "company_name", "VARCHAR(150) NULL");
-  await addColumnIfMissing("vendor_registration_access", "status", "ENUM('ACTIVE', 'USED', 'REVOKED') DEFAULT 'ACTIVE'");
+  await addColumnIfMissing("vendor_registration_access", "status", "VARCHAR(20) DEFAULT 'ACTIVE'");
+  await addColumnIfMissing("vendor_registration_access", "created_by_user_id", "INT NULL");
   await addColumnIfMissing("vendor_registration_access", "used_by_user_id", "INT NULL");
-  await addColumnIfMissing("vendor_registration_access", "used_at", "TIMESTAMP NULL");
+  await addColumnIfMissing("vendor_registration_access", "used_at", "DATETIME NULL");
   await addColumnIfMissing("vendor_registration_access", "expires_at", "DATETIME NULL");
+
+  try {
+    await runQuery(`
+      ALTER TABLE vendor_registration_access
+      MODIFY status VARCHAR(20) DEFAULT 'ACTIVE'
+    `);
+  } catch (error) {
+    console.log("Skipping vendor access status migration:", error.message);
+  }
+
+  try {
+    await runQuery(`
+      ALTER TABLE vendor_registration_access
+      MODIFY created_by_user_id INT NULL
+    `);
+  } catch (error) {
+    console.log("Skipping vendor access creator migration:", error.message);
+  }
 
   console.log("Database tables checked.");
 }
@@ -728,12 +747,25 @@ app.get("/infosec/vendor-access", requireRole("infosec"), async (_req, res) => {
 });
 
 app.post("/infosec/vendor-access", requireRole("infosec"), async (req, res) => {
-  const vendorEmail = String(req.body.vendor_email || "").trim();
+  const vendorEmail = String(req.body.vendor_email || "").trim().toLowerCase();
   const companyName = String(req.body.company_name || "").trim();
-  const expiresAt = String(req.body.expires_at || "").trim();
+  const rawExpiresAt = String(req.body.expires_at || "").trim();
 
   if (!vendorEmail) {
     return res.status(400).json({ message: "Vendor email is required." });
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(vendorEmail)) {
+    return res.status(400).json({ message: "Please enter a valid vendor email address." });
+  }
+
+  let expiresAt = null;
+  if (rawExpiresAt) {
+    // HTML date inputs return YYYY-MM-DD. MySQL DATETIME accepts YYYY-MM-DD 23:59:59.
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(rawExpiresAt)) {
+      return res.status(400).json({ message: "Expiration date must use YYYY-MM-DD format." });
+    }
+    expiresAt = `${rawExpiresAt} 23:59:59`;
   }
 
   try {
@@ -743,14 +775,15 @@ app.post("/infosec/vendor-access", requireRole("infosec"), async (req, res) => {
       `
         INSERT INTO vendor_registration_access
         (access_code, vendor_email, company_name, expires_at, created_by_user_id, status)
-        VALUES (?, ?, ?, ?, ?, 'ACTIVE')
+        VALUES (?, ?, ?, ?, ?, ?)
       `,
       [
         code,
         vendorEmail,
         companyName || null,
-        expiresAt || null,
-        req.session.user.user_id
+        expiresAt,
+        req.session.user.user_id || null,
+        "ACTIVE"
       ]
     );
 
@@ -776,7 +809,9 @@ app.post("/infosec/vendor-access", requireRole("infosec"), async (req, res) => {
     });
   } catch (error) {
     console.error("Create vendor access code error:", error);
-    res.status(500).json({ message: error.sqlMessage || "Failed to create vendor access code." });
+    res.status(500).json({
+      message: error.sqlMessage || error.message || "Failed to create vendor access code."
+    });
   }
 });
 
@@ -789,7 +824,7 @@ app.patch("/infosec/vendor-access/:access_id/revoke", requireRole("infosec"), as
         UPDATE vendor_registration_access
         SET status = 'REVOKED'
         WHERE access_id = ?
-        AND status = 'ACTIVE'
+        AND UPPER(status) = 'ACTIVE'
       `,
       [accessId]
     );
@@ -853,7 +888,7 @@ app.post("/register", async (req, res) => {
 
       accessRecord = accessRows[0];
 
-      if (accessRecord.status !== "ACTIVE") {
+      if (String(accessRecord.status || "").toUpperCase() !== "ACTIVE") {
         return res.status(403).json({
           message: "This vendor access code is already used or no longer active."
         });

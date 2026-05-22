@@ -697,7 +697,7 @@ async function api(url, options = {}) {
   }
 
   if (!response.ok) {
-    throw new Error(data?.message || "Request failed.");
+    throw new Error(data?.message || `Request failed (${response.status}).`);
   }
   return data;
 }
@@ -2279,6 +2279,7 @@ async function submitVendorAccessForm(event) {
     await loadVendorAccessData();
     showToast(data.message || "Vendor access code generated.");
   } catch (error) {
+    console.error("Vendor access create error:", error);
     alert(error.message || "Failed to create vendor access code.");
   }
 }
