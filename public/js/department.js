@@ -104,12 +104,12 @@ let adminRows = [];
 let activeMainAssessment = null;
 let activeDepartmentAssessment = null;
 let activeDepartmentAnswers = {};
-let activeVendorAnswers = {};
 let adminReviewRows = [];
 let selectedReviewAssessment = null;
 let reportingSignoffRows = [];
 let selectedReportingAssessment = null;
 let assessmentSummaryData = null;
+let accountApprovalRows = [];
 
 const roleLabels = {
   employee: "Employee / Compliance Officer",
@@ -127,7 +127,7 @@ const departmentRoles = ["it", "infosec", "management", "dpo", "hr", "compliance
 const defaultPageByRole = {
   employee: "add-vendor",
   it: "dashboard",
-  infosec: "dashboard",
+  infosec: "account-approvals",
   management: "dashboard",
   dpo: "dashboard",
   hr: "dashboard",
@@ -140,6 +140,7 @@ const customPageLabels = {
   "add-vendor": "Insert Vendor",
   "my-submissions": "My Submissions",
   "vendor-queue": "Vendor Queue",
+  "account-approvals": "Account Approvals",
   "vendor-assessment": "Vendor Assessment",
   "pending-approval": "Pending Approval",
   signoff: "Form for Sign-off",
@@ -242,6 +243,10 @@ const profileFirstName = document.getElementById("profileFirstName");
 const profileLastName = document.getElementById("profileLastName");
 const profileJobTitle = document.getElementById("profileJobTitle");
 const profileWorkEmail = document.getElementById("profileWorkEmail");
+const accountApprovalsBody = document.getElementById("accountApprovalsBody");
+const accountPendingCount = document.getElementById("accountPendingCount");
+const accountApprovedCount = document.getElementById("accountApprovedCount");
+const accountRejectedCount = document.getElementById("accountRejectedCount");
 
 function getRoleLabel(role = currentRole) {
   return roleLabels[role] || role || "User";
@@ -739,6 +744,8 @@ function applyRoleLayout() {
   if (roleHelper) {
     if (currentRole === "employee") {
       roleHelper.textContent = "Standard Employee Portal: add vendors and create the main vendor assessment request.";
+    } else if (currentRole === "infosec") {
+      roleHelper.textContent = "InfoSec Console: approve registered accounts and review assigned assessments.";
     } else if (isDepartmentRole()) {
       roleHelper.textContent = `${label} Console: answer your department form for shared vendor assessments.`;
     } else if (currentRole === "admin") {
@@ -801,6 +808,9 @@ async function refreshCurrentPage(_page = getCurrentPage()) {
     }
     if (isDepartmentRole()) {
       await loadDepartmentWorkflowData();
+      if (currentRole === "infosec") {
+        await loadAccountApprovals();
+      }
     }
     if (currentRole === "admin") {
       await loadAdminData();
@@ -973,6 +983,84 @@ function setupAddVendorForm() {
   });
 }
 
+
+
+async function loadAccountApprovals() {
+  if (currentRole !== "infosec") return;
+  if (!accountApprovalsBody) return;
+
+  const data = await api("/infosec/account-approvals");
+  accountApprovalRows = data.accounts || [];
+  renderAccountApprovals();
+}
+
+function renderAccountApprovals() {
+  if (!accountApprovalsBody) return;
+
+  const pending = accountApprovalRows.filter((item) => item.account_approval_status === "Pending").length;
+  const approved = accountApprovalRows.filter((item) => item.account_approval_status === "Approved").length;
+  const rejected = accountApprovalRows.filter((item) => item.account_approval_status === "Rejected").length;
+
+  if (accountPendingCount) accountPendingCount.textContent = pending;
+  if (accountApprovedCount) accountApprovedCount.textContent = approved;
+  if (accountRejectedCount) accountRejectedCount.textContent = rejected;
+
+  if (!accountApprovalRows.length) {
+    accountApprovalsBody.innerHTML = `<tr><td colspan="7" class="empty-cell">No account requests found.</td></tr>`;
+    return;
+  }
+
+  accountApprovalsBody.innerHTML = accountApprovalRows.map((item) => {
+    const status = item.account_approval_status || "Pending";
+    const isPending = status === "Pending";
+
+    return `
+      <tr>
+        <td><strong>ACCT-${String(item.user_id).padStart(3, "0")}</strong></td>
+        <td>${escapeHTML(item.full_name || "-")}</td>
+        <td>${escapeHTML(item.email || "-")}</td>
+        <td>${escapeHTML(getRoleLabel(item.role))}</td>
+        <td><span class="status-pill ${statusClass(status)}">${escapeHTML(status)}</span></td>
+        <td>${escapeHTML(formatDate(item.created_at))}</td>
+        <td>
+          ${isPending ? `
+            <div class="approval-action-row">
+              <button type="button" class="approve-account-btn" data-account-id="${item.user_id}" data-decision="approve">Approve</button>
+              <button type="button" class="reject-account-btn" data-account-id="${item.user_id}" data-decision="reject">Reject</button>
+            </div>
+          ` : `
+            <small>${escapeHTML(item.decided_by || "InfoSec")}${item.account_rejection_reason ? `<br>Reason: ${escapeHTML(item.account_rejection_reason)}` : ""}</small>
+          `}
+        </td>
+      </tr>
+    `;
+  }).join("");
+}
+
+async function handleAccountApprovalDecision(userId, decision) {
+  let reason = "";
+
+  if (decision === "reject") {
+    reason = prompt("Reason for rejecting this account registration:") || "";
+
+    if (!reason.trim()) {
+      showToast("Rejection reason is required.");
+      return;
+    }
+  }
+
+  try {
+    const data = await api(`/infosec/account-approvals/${userId}/decision`, {
+      method: "POST",
+      body: JSON.stringify({ decision, reason })
+    });
+
+    showToast(data.message || "Account decision saved.");
+    await loadAccountApprovals();
+  } catch (error) {
+    alert(error.message || "Failed to save account decision.");
+  }
+}
 
 async function loadDepartmentWorkflowData() {
   const [queue, assessments, pending, questions, vendors] = await Promise.all([
@@ -1152,18 +1240,9 @@ async function loadDepartmentAssessment(assessmentId) {
   activeMainAssessment = data.assessment;
   activeDepartmentAssessment = data.department_assessment;
   departmentQuestions = data.questions || departmentQuestions;
-  
   activeDepartmentAnswers = {};
   (data.answers || []).forEach((answer) => {
     activeDepartmentAnswers[answer.question_index] = answer;
-  });
-
-  // FIX: Save the vendor's submitted answers using a composite key (Section + Text)
-  // This prevents the index collisions between departments!
-  activeVendorAnswers = {};
-  (data.vendor_answers || []).forEach((answer) => {
-    const key = `${answer.section_name}|${answer.question_text}`;
-    activeVendorAnswers[key] = answer;
   });
 
   if (infosecAssessmentCode) infosecAssessmentCode.value = activeMainAssessment.assessment_code || "";
@@ -1187,50 +1266,60 @@ function renderDepartmentFormQuestions() {
 
   departmentQuestions.forEach((question) => {
     const index = question.question_index;
-    
-    // Department's draft review data
     const saved = activeDepartmentAnswers[index] || {};
+    const response = saved.response || "";
     const explanation = saved.explanation || "";
-
-    // FIX: Look up the Vendor's submitted data using the composite key
-    const vendorKey = `${question.section_name}|${question.question_text}`;
-    const vendorSaved = activeVendorAnswers[vendorKey] || {};
-    
-    const vendorResponse = vendorSaved.response === "TEXT_ANSWER" 
-      ? (vendorSaved.explanation || "No response provided") 
-      : (vendorSaved.response || "No response provided");
-    
-    let vendorExplanationHtml = "";
-    if (vendorSaved.response !== "TEXT_ANSWER" && vendorSaved.explanation) {
-      vendorExplanationHtml = `<p style="margin: 8px 0;"><strong>Vendor Explanation:</strong> ${escapeHTML(vendorSaved.explanation)}</p>`;
-    }
-    
-    let vendorArtifactHtml = "";
-    if (vendorSaved.artifact_path) {
-      vendorArtifactHtml = `<p style="margin: 8px 0 0 0;"><strong>Vendor Artifact:</strong> <a href="${escapeHTML(vendorSaved.artifact_path)}" target="_blank" style="color: #2563eb; text-decoration: none; font-weight: 500;">${escapeHTML(vendorSaved.artifact_name || "View Document")}</a></p>`;
-    }
+    const artifactName = saved.artifact_name || "";
 
     if (question.section_name !== currentSection) {
       currentSection = question.section_name;
       html += `<div class="is-group-title"><h3>${escapeHTML(currentSection)}</h3><p>${escapeHTML(getRoleLabel())} Questionnaire</p></div>`;
     }
 
-    // Render the question and submission/comment layout
+    if (currentRole === "employee") {
+      html += `
+        <div class="is-question-card" data-question-index="${index}">
+          <h4>${index + 1}. ${escapeHTML(question.question_text)}</h4>
+          <div class="is-answer-grid">
+            <div class="field-group" style="grid-column: 1 / -1;">
+              <label>Vendor Response</label>
+              <textarea class="is-explanation" data-index="${index}" placeholder="Enter vendor information answer" required>${escapeHTML(explanation)}</textarea>
+              <select class="is-response hidden" data-index="${index}">
+                <option value="TEXT_ANSWER" selected>TEXT_ANSWER</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label>Supporting Document</label>
+              <input type="file" class="is-artifact" data-index="${index}" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" />
+              <p class="artifact-note">Optional. ${artifactName ? `Current: ${escapeHTML(artifactName)}` : ""}</p>
+            </div>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
     html += `
       <div class="is-question-card" data-question-index="${index}">
         <h4>${index + 1}. ${escapeHTML(question.question_text)}</h4>
-        
-        <div class="vendor-submission-readonly" style="background: #f8fafc; padding: 15px; border-radius: 6px; margin: 15px 0; border: 1px solid #e2e8f0; font-size: 0.95rem;">
-          <p style="margin: 0 0 8px 0; color: #475569; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Vendor's Submission</p>
-          <p style="margin: 0;"><strong>Response:</strong> ${escapeHTML(vendorResponse)}</p>
-          ${vendorExplanationHtml}
-          ${vendorArtifactHtml}
-        </div>
-
-        <div class="is-comment-area" style="border-top: 1px dashed #cbd5e1; padding-top: 15px; margin-top: 10px;">
+        <div class="is-answer-grid">
           <div class="field-group">
-            <label>Reviewer Comments</label>
-            <textarea class="is-explanation" data-index="${index}" placeholder="Add your findings or conditions here..." style="width: 100%; min-height: 80px;">${escapeHTML(explanation)}</textarea>
+            <label>Response</label>
+            <select class="is-response" data-index="${index}" required>
+              <option value="">Select</option>
+              <option value="Yes" ${response === "Yes" ? "selected" : ""}>Yes</option>
+              <option value="No" ${response === "No" ? "selected" : ""}>No</option>
+              <option value="N/A" ${response === "N/A" ? "selected" : ""}>N/A</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label>Explanation</label>
+            <textarea class="is-explanation" data-index="${index}" placeholder="Required if No or N/A">${escapeHTML(explanation)}</textarea>
+          </div>
+          <div class="field-group">
+            <label>Artifacts</label>
+            <input type="file" class="is-artifact" data-index="${index}" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" />
+            <p class="artifact-note">Required if Yes. ${artifactName ? `Current: ${escapeHTML(artifactName)}` : ""}</p>
           </div>
         </div>
       </div>
@@ -2204,6 +2293,15 @@ function setupEvents() {
   document.querySelectorAll("[data-tab]").forEach((tabBtn) => {
     tabBtn.addEventListener("click", () => switchAssessmentReviewTab(tabBtn.dataset.tab, tabBtn));
   });
+
+  if (accountApprovalsBody) {
+    accountApprovalsBody.addEventListener("click", async (event) => {
+      const button = event.target.closest("[data-account-id][data-decision]");
+      if (!button) return;
+
+      await handleAccountApprovalDecision(button.dataset.accountId, button.dataset.decision);
+    });
+  }
 
   if (refreshBtn) {
   refreshBtn.addEventListener("click", async () => {
