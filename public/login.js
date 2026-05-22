@@ -5,6 +5,8 @@ const otpForm = document.getElementById("otpForm");
 const otpInputs = Array.from(document.querySelectorAll(".otp-input"));
 const otpEmailLabel = document.getElementById("otpEmailLabel");
 const otpExpire = document.getElementById("otpExpire");
+const otpDemoBox = document.getElementById("otpDemoBox");
+const otpDemoCode = document.getElementById("otpDemoCode");
 const requestOtpBtn = document.getElementById("requestOtpBtn");
 const verifyOtpBtn = document.getElementById("verifyOtpBtn");
 const backToLoginBtn = document.getElementById("backToLoginBtn");
@@ -17,7 +19,6 @@ const vendorAccessCode = document.getElementById("vendorAccessCode");
 
 let pendingOtpEmail = "";
 let otpTimer = null;
-let otpRemainingSeconds = 0;
 
 function getRedirectPage(role) {
   if (role === "vendor") return "vendor.html";
@@ -32,14 +33,12 @@ function getRedirectPage(role) {
 
 function showMessage(message, type = "error") {
   if (!messageBox) return;
-
   messageBox.textContent = message;
   messageBox.className = `message show ${type}`;
 }
 
 function clearMessage() {
   if (!messageBox) return;
-
   messageBox.textContent = "";
   messageBox.className = "message";
 }
@@ -130,9 +129,21 @@ if (registerRole) {
   toggleVendorAccessCodeField();
 }
 
+document.querySelectorAll("[data-auth-tab]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const tab = button.dataset.authTab;
+
+    if (tab === "login" || tab === "register") {
+      showPanel(tab);
+      clearMessage();
+    }
+  });
+});
+
 function resetOtpInputs() {
   otpInputs.forEach((input, index) => {
     input.value = "";
+
     if (index === 0) {
       input.removeAttribute("disabled");
     } else {
@@ -141,7 +152,7 @@ function resetOtpInputs() {
   });
 
   if (verifyOtpBtn) verifyOtpBtn.disabled = true;
-  otpInputs[0]?.focus();
+  setTimeout(() => otpInputs[0]?.focus(), 50);
 }
 
 function getEnteredOtp() {
@@ -155,21 +166,36 @@ function updateOtpButtonState() {
 
 function startOtpTimer(seconds = 300) {
   clearInterval(otpTimer);
-  otpRemainingSeconds = Number(seconds) || 300;
 
-  if (otpExpire) otpExpire.textContent = String(otpRemainingSeconds);
+  let remaining = Number(seconds) || 300;
+  if (otpExpire) otpExpire.textContent = String(remaining);
 
   otpTimer = setInterval(() => {
-    otpRemainingSeconds -= 1;
+    remaining -= 1;
 
-    if (otpExpire) otpExpire.textContent = String(Math.max(0, otpRemainingSeconds));
+    if (otpExpire) otpExpire.textContent = String(Math.max(0, remaining));
 
-    if (otpRemainingSeconds <= 0) {
+    if (remaining <= 0) {
       clearInterval(otpTimer);
       otpTimer = null;
       if (verifyOtpBtn) verifyOtpBtn.disabled = true;
     }
   }, 1000);
+}
+
+function showDemoOtp(devOtp) {
+  if (!otpDemoBox || !otpDemoCode) return;
+
+  if (devOtp) {
+    otpDemoCode.textContent = devOtp;
+    otpDemoBox.classList.remove("hidden");
+
+    // Demo only. If alert is blocked or missed, the code still appears on the page.
+    setTimeout(() => alert(`Your OTP is: ${devOtp}`), 150);
+  } else {
+    otpDemoCode.textContent = "----";
+    otpDemoBox.classList.remove("hidden");
+  }
 }
 
 function openOtpVerification(email, options = {}) {
@@ -182,14 +208,12 @@ function openOtpVerification(email, options = {}) {
   showPanel("otp");
   resetOtpInputs();
   startOtpTimer(options.expiresIn || 300);
+  showDemoOtp(options.devOtp);
 
-  if (options.message) {
-    showMessage(options.message, options.type || "success");
-  }
-
-  if (options.devOtp) {
-    alert(`Your OTP is: ${options.devOtp}`);
-  }
+  showMessage(
+    options.message || "Enter the 4-digit OTP to complete account verification.",
+    options.type || "success"
+  );
 }
 
 otpInputs.forEach((input, index) => {
@@ -212,16 +236,20 @@ otpInputs.forEach((input, index) => {
       updateOtpButtonState();
     }
   });
-});
 
-document.querySelectorAll("[data-auth-tab]").forEach((button) => {
-  button.addEventListener("click", () => {
-    const tab = button.dataset.authTab;
+  input.addEventListener("paste", (event) => {
+    event.preventDefault();
+    const pasted = event.clipboardData.getData("text").replace(/\D/g, "").slice(0, 4);
 
-    if (tab === "login" || tab === "register") {
-      showPanel(tab);
-      clearMessage();
-    }
+    pasted.split("").forEach((digit, digitIndex) => {
+      if (otpInputs[digitIndex]) {
+        otpInputs[digitIndex].removeAttribute("disabled");
+        otpInputs[digitIndex].value = digit;
+      }
+    });
+
+    updateOtpButtonState();
+    otpInputs[Math.min(pasted.length, 3)]?.focus();
   });
 });
 
@@ -256,9 +284,10 @@ if (loginForm) {
 
       if (otpRequired) {
         openOtpVerification(error.data?.email || email, {
-          message: "Please verify your OTP before logging in. Click Request Again to generate a new OTP.",
+          message: "Please verify your OTP before logging in.",
           type: "error",
-          expiresIn: 300
+          devOtp: error.data?.dev_otp,
+          expiresIn: error.data?.expires_in || 300
         });
       } else {
         showMessage(message);
@@ -295,7 +324,7 @@ if (registerForm) {
       toggleVendorAccessCodeField();
 
       openOtpVerification(data.email || email, {
-        message: data.message || "Account created. Enter the OTP to complete registration.",
+        message: "Account created. Enter the OTP to complete registration.",
         type: "success",
         devOtp: data.dev_otp,
         expiresIn: data.expires_in || 300
@@ -334,8 +363,8 @@ if (otpForm) {
 
       clearInterval(otpTimer);
       otpTimer = null;
-      resetOtpInputs();
       pendingOtpEmail = "";
+      resetOtpInputs();
       showPanel("login");
       showMessage(data.message || "OTP verified successfully. You can now log in.", "success");
     } catch (error) {
@@ -362,7 +391,7 @@ if (requestOtpBtn) {
       });
 
       openOtpVerification(data.email || pendingOtpEmail, {
-        message: data.message || "A new OTP has been generated.",
+        message: "A new OTP has been generated.",
         type: "success",
         devOtp: data.dev_otp,
         expiresIn: data.expires_in || 300
