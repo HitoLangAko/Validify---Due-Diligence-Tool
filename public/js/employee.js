@@ -2521,38 +2521,120 @@ async function confirmVendorDueDiligenceReasonDecision() {
     return;
   }
 
-  await submitVendorDueDiligenceDecision(pendingVendorDueDiligenceDecision, reason);
-  pendingVendorDueDiligenceDecision = null;
-  modal.classList.add("hidden");
+  const saved = await submitVendorDueDiligenceDecision(pendingVendorDueDiligenceDecision, reason);
+
+  if (saved) {
+    pendingVendorDueDiligenceDecision = null;
+    modal.classList.add("hidden");
+  }
+}
+
+async function postJsonWithDetails(url, payload) {
+  const response = await fetch(url, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+
+  let data = null;
+
+  try {
+    data = await response.json();
+  } catch (_error) {
+    data = null;
+  }
+
+  if (!response.ok) {
+    const message = data?.message || `Request failed (${response.status}).`;
+    const error = new Error(message);
+    error.status = response.status;
+    error.url = url;
+    error.data = data;
+    throw error;
+  }
+
+  return data || {};
+}
+
+async function saveVendorVisibleReasonSilently(assessmentId, decision, reason) {
+  if (!["return", "reject"].includes(decision) || !reason) {
+    return null;
+  }
+
+  const encodedReason = encodeURIComponent(reason);
+  const encodedDecision = encodeURIComponent(decision);
+
+  const reasonEndpoints = [
+    `/employee/vendor-due-diligence/${assessmentId}/reason?decision=${encodedDecision}&reason=${encodedReason}&comment=${encodedReason}`,
+    `/employee/vendor-assessments/${assessmentId}/reason?decision=${encodedDecision}&reason=${encodedReason}&comment=${encodedReason}`
+  ];
+
+  const payload = {
+    decision,
+    reason,
+    comment: reason,
+    employee_reason: reason,
+    vendor_visible_reason: reason,
+    rejection_reason: decision === "reject" ? reason : "",
+    return_reason: decision === "return" ? reason : ""
+  };
+
+  let lastError = null;
+
+  for (const endpoint of reasonEndpoints) {
+    try {
+      return await postJsonWithDetails(endpoint, payload);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  console.warn("Vendor-visible reason backup save failed:", lastError?.message || lastError);
+  return null;
 }
 
 async function postVendorDueDiligenceDecision(assessmentId, payload) {
-  const encodedReason = encodeURIComponent(payload.reason || payload.comment || "");
+  const reason = String(payload.reason || payload.comment || payload.vendor_visible_reason || "").trim();
+  const encodedReason = encodeURIComponent(reason);
+  const encodedDecision = encodeURIComponent(payload.decision || "");
 
-  const primaryUrl = `/employee/vendor-due-diligence/${assessmentId}/decision?reason=${encodedReason}&comment=${encodedReason}`;
-  const fallbackUrl = `/employee/vendor-assessments/${assessmentId}/decision?reason=${encodedReason}&comment=${encodedReason}`;
+  const decisionEndpoints = [
+    `/employee/vendor-due-diligence/${assessmentId}/decision?decision=${encodedDecision}&reason=${encodedReason}&comment=${encodedReason}`,
+    `/employee/vendor-assessments/${assessmentId}/decision?decision=${encodedDecision}&reason=${encodedReason}&comment=${encodedReason}`
+  ];
 
-  try {
-    return await api(primaryUrl, {
-      method: "POST",
-      body: JSON.stringify(payload)
-    });
-  } catch (primaryError) {
+  let lastError = null;
+
+  for (const endpoint of decisionEndpoints) {
     try {
-      return await api(fallbackUrl, {
-        method: "POST",
-        body: JSON.stringify(payload)
-      });
-    } catch (fallbackError) {
-      throw new Error(fallbackError.message || primaryError.message || "Failed to save vendor due diligence decision.");
+      const data = await postJsonWithDetails(endpoint, payload);
+
+      // Important: save the vendor-visible reason again after the status decision.
+      // This fixes cases where the backend changes status but does not store the modal reason.
+      await saveVendorVisibleReasonSilently(assessmentId, payload.decision, reason);
+
+      return data;
+    } catch (error) {
+      lastError = error;
     }
   }
+
+  // Final fallback: save the reason first, then try the main endpoint again.
+  // This helps older server.js versions that separated status and reason saving.
+  if (["return", "reject"].includes(payload.decision) && reason) {
+    await saveVendorVisibleReasonSilently(assessmentId, payload.decision, reason);
+  }
+
+  const message = lastError?.message || "Failed to save vendor due diligence decision.";
+  const status = lastError?.status ? ` (${lastError.status})` : "";
+  throw new Error(`${message}${status}`);
 }
 
 async function submitVendorDueDiligenceDecision(decision, forcedReason = null) {
   if (!selectedVendorDueDiligence?.assessment_id) {
     alert("Please select a vendor assessment first.");
-    return;
+    return false;
   }
 
   const labels = {
@@ -2567,16 +2649,24 @@ async function submitVendorDueDiligenceDecision(decision, forcedReason = null) {
 
   if (["return", "reject"].includes(decision) && !decisionComment) {
     openVendorDueDiligenceReasonModal(decision);
-    return;
+    return false;
   }
 
-  if (!confirm(`Are you sure you want to ${labels[decision]}?`)) return;
+  if (!confirm(`Are you sure you want to ${labels[decision]}?`)) return false;
 
   const payload = {
     decision,
+    action: decision,
+    status: decision === "reject"
+      ? "Rejected"
+      : decision === "return"
+        ? "Returned"
+        : "Approved",
     comment: decisionComment,
     reason: decisionComment,
     employee_reason: decisionComment,
+    employee_comment: decisionComment,
+    employee_review_comment: decisionComment,
     vendor_visible_reason: decisionComment,
     rejection_reason: decision === "reject" ? decisionComment : "",
     return_reason: decision === "return" ? decisionComment : ""
@@ -2598,8 +2688,11 @@ async function submitVendorDueDiligenceDecision(decision, forcedReason = null) {
       vendorDueDiligenceSelect.value = String(assessmentId);
       handleVendorDueDiligenceSelection();
     }
+
+    return true;
   } catch (error) {
     alert(error.message || "Failed to save vendor due diligence decision.");
+    return false;
   }
 }
 
